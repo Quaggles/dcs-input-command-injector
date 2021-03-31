@@ -68,13 +68,13 @@ Inside the generic input folder `Saved Games\DCS\QuagglesKeybindInjector\FA-18C\
 ```lua
 return {
 	keyCommands = {
-        {down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = -1.0, value_up = 1.0, name = 'Speed Brake Hold', category = {'Quaggles Custom'}},
-        {down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = 1.0, value_up = -1.0, name = 'Speed Brake Inverted', category = {'Quaggles Custom'}},
-        -- KeyCommand Template (Remove leading -- to uncomment)
+        	{down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = -1.0, value_up = 1.0, name = 'Speed Brake Hold', category = {'Quaggles Custom'}},
+        	{down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = 1.0, value_up = -1.0, name = 'Speed Brake Inverted', category = {'Quaggles Custom'}},
+        	-- KeyCommand Template (Remove leading -- to uncomment)
 		-- {down = CommandNameOnButtonDown, up = CommandNameOnButtonUp, name = 'NameForControlList', category = 'CategoryForControlList'},
 	},
 	axisCommands = {
-        -- AxisCommand Template (Remove leading -- to uncomment)
+        	-- AxisCommand Template (Remove leading -- to uncomment)
 		-- {action = CommandName, Device, name = 'NameForControlList', category = 'CategoryForControlList'},
 	}
 }
