@@ -24,7 +24,7 @@ Until now the solution was to find the control definition file `DCSWorld\Mods\ai
 
 If you were using a mod manager such as OVGME if you reapplied your mod after an update and the developers had changed the control binds things could break as things could conflict.
 
-With this mod you should just need to re-enable it after every update with OVGME and your custom control binds are safe and need no changes.
+With this mod you should just need to re-enable it after every update with OVGME and your custom control binds are safe with no need no change anything.
 
 ## Installation
 
