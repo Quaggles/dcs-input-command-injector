@@ -20,7 +20,11 @@ In my case, on my Saitek X-55 Throttle there is an airbrake slider switch that w
 {down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = -1.0, value_up = 1.0, name = 'Speed Brake Hold', category = {'Quaggles Custom'}},
 ```
 
-Until now the solution was to find the control definition file `DCSWorld\Mods\aircraft\FA-18C\Input\FA-18C\joystick\default.lua` and insert your command somewhere inside of it, if you weren't using a mod manager then every time the game was updated your change would be erased and you'd need reinsert your commands into the files for every aircraft you changed. If you were using a mod manager such as OVGME if you reapplied your mod after an update and the developers had changed the control binds you wouldn't see them since your mod was setting a copy of the old version of the file.
+Until now the solution was to find the control definition file `DCSWorld\Mods\aircraft\FA-18C\Input\FA-18C\joystick\default.lua` and insert your command somewhere inside of it, if you weren't using a mod manager then every time the game was updated your change would be erased and you'd need reinsert your commands into the files for every aircraft you changed.
+
+If you were using a mod manager such as OVGME if you reapplied your mod after an update and the developers had changed the control binds things could break as things could conflict.
+
+With this mod you should just need to re-enable it after every update with OVGME and your custom control binds are safe and need no changes.
 
 ## Installation
 
