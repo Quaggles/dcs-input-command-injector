@@ -1,5 +1,7 @@
 # DCS Keybind Injector by Quaggles
 
+![image](https://user-images.githubusercontent.com/8382945/113183515-75dbfb00-9297-11eb-965a-492fd9789c26.png)
+
 ## Summary
 
 A mod that allows you to configure custom keybind entries inside your `Saved Games/DCS/` folder instead of inside your game folder, when DCS is run these entries are merged in with the default aircraft entries. This method avoids having to manually merge your control changes into each aircrafts default controls when DCS updates.
