@@ -98,7 +98,7 @@ Allows binding request bogey dope to your HOTAS, not every aircraft has this by 
 ```
 
 ### Enable Su-25T Nightvision
-Works with Su-25A and A-10A as well if you add the commands for those aircraft, can be added for nearly any aircraft in the game (Except Su-27, Su-33, J-11, F-15C) if you [follow this guide](https://forums.eagle.ru/topic/134486-night-vision/?tab=comments#comment-2732313)
+Works with Su-25A and A-10A as well if you add the commands for those aircraft, can be added for nearly any aircraft in the game (Except Su-27, Su-33, J-11, MiG-29, F-15C) if you [follow this guide](https://forums.eagle.ru/topic/134486-night-vision/?tab=comments#comment-2732313)
 ```lua
 {down = iCommandViewNightVisionGogglesOn, name = _('Night Vision Goggles'), category = _('Quaggles Custom')},
 {pressed = iCommandPlane_Helmet_Brightess_Up, value_pressed = 0.5, name = _('Night Vision Goggles Gain Up'), category = _('Quaggles Custom')},
