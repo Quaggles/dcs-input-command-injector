@@ -57,7 +57,7 @@ The DCS input folder structure needs be duplicated so that the folders relative 
 
 An example of the folder structure for some aircraft I have configured:
 
-![image](https://user-images.githubusercontent.com/8382945/113179959-87230880-9293-11eb-9979-2c2e99b74920.png)
+![image](https://user-images.githubusercontent.com/8382945/113282409-37dbe700-932a-11eb-89b2-e311afb75eb1.png)
 
 ### Creating your custom commands
 
