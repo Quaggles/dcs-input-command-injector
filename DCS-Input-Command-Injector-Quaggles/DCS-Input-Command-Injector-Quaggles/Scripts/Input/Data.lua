@@ -741,7 +741,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 		
 		status, result = pcall(f)
 
-		QuagglesKeybindInjector(filename, folder, env, result)
+		QuagglesInputCommandInjector(filename, folder, env, result)
 		
 		if status then
 			if nonLocalized then
