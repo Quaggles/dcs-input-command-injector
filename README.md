@@ -97,10 +97,36 @@ Allows binding request bogey dope to your HOTAS, not every aircraft has this by 
 {down = iCommandAWACSBanditBearing, name='Request AWACS Nearest Bandit', category = 'Quaggles Custom'},
 ```
 
+### Enable Su-25T Nightvision
+Works with Su-25A and A-10A as well if you add the commands for those aircraft, can be added for nearly any aircraft in the game (Except Su-27, Su-33, J-11, F-15C) if you [follow this guide](https://forums.eagle.ru/topic/134486-night-vision/?tab=comments#comment-2732313)
+```lua
+{down = iCommandViewNightVisionGogglesOn, name = _('Night Vision Goggles'), category = _('Quaggles Custom')},
+{pressed = iCommandPlane_Helmet_Brightess_Up, value_pressed = 0.5, name = _('Night Vision Goggles Gain Up'), category = _('Quaggles Custom')},
+{pressed = iCommandPlane_Helmet_Brightess_Down, value_pressed = -0.5, name = _('Night Vision Goggles Gain Down'), category = _('Quaggles Custom')},
+```
+
 ### Ka-50 Gear Up/Down
 ```lua
 {down = iCommandPlaneGearUp, name = 'Gear Up', category = 'Quaggles Custom'},
 {down = iCommandPlaneGearDown, name = 'Gear Down', category = 'Quaggles Custom'},
+```
+		
+### A-10C Speedbrake Temporary
+```lua
+{down = iCommandPlane_HOTAS_SpeedBrakeSwitchAft, up = iCommandPlane_HOTAS_SpeedBrakeSwitchForward, name = 'HOTAS Speed Brake Switch (Hold)', category = 'Quaggles Custom', },
+{down = iCommandPlane_HOTAS_SpeedBrakeSwitchForward, up = iCommandPlane_HOTAS_SpeedBrakeSwitchAft, name = 'HOTAS Speed Brake Switch (Inverted Hold)', category = 'Quaggles Custom', },
+```
+		
+### A-10C VKB Gunfighter Flip Trigger controls master arm
+```lua
+{down = iCommandPlaneAHCPMasterArm, up = iCommandPlaneAHCPMasterSafe, name = 'Master Arm Armed [else] Safe', category = 'Quaggles Custom', },
+{down = iCommandPlaneAHCPMasterSafe, up = iCommandPlaneAHCPMasterArm, name = 'Master Arm Safe [else] Armed', category = 'Quaggles Custom', },
+```
+
+### F/A-18C Speedbrake Temporary
+```lua
+{down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = -1.0, value_up = 1.0, name = _('Speed Brake Hold'), category = {'Quaggles Custom'}},
+{down = hotas_commands.THROTTLE_SPEED_BRAKE, up = hotas_commands.THROTTLE_SPEED_BRAKE, cockpit_device_id = devices.HOTAS, value_down = 1.0, value_up = -1.0, name = _('Speed Brake Hold Inverted'), category = {'Quaggles Custom'}},
 ```
 
 ### F/A-18C VKB Gunfighter Flip Trigger controls master arm
