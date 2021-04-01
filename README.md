@@ -51,9 +51,9 @@ New commands are configured in the `Saved Games\DCS\InputCommands` directory, le
 
 For the F/A-18C the default input files are located in `DCSWorld\Mods\aircraft\FA-18C\Input\FA-18C`, inside this directory are folders with the generic names of your input devices, these can include `joystick`, `keyboard`, `mouse`, `trackir` and `headtracker`. Each generic input folder contains `default.lua` which is the default set of commands the developer has configured, this is an important reference when making your own commands. It also contains many lua files for automatic binding of common hardware like the Thrustmaster Warthog HOTAS but these can be ignored (`*.diff.lua`).
 
-The DCS input folder structure needs be duplicated so that the folders relative to `DCSWorld\Mods\aircraft` are placed in `Saved Games\DCS\InputCommands`. The folder structure needs to match <b>EXACTLY</b> for each generic input device you want to add commands to. In my F/A-18C Speedbrake Hold example that means I will create the structure `Saved Games\DCS\InputCommands\FA-18C\Input\FA-18C\joystick\`, for an F-14B in the RIO seat I would create `Saved Games\DCS\InputCommands\F14\Input\F-14B-RIO\joystick`.
+The DCS input folder structure needs be duplicated so that the folders relative to `DCSWorld\Mods\aircraft` are placed in `Saved Games\DCS\InputCommands`. The folder structure needs to match <b>EXACTLY</b> for each generic input device you want to add commands to. In my F/A-18C Speedbrake Hold example that means I will create the structure `Saved Games\DCS\InputCommands\FA-18C\Input\FA-18C\joystick\`, for an F-14B in the RIO seat I would create `Saved Games\DCS\InputCommands\F14\Input\F-14B-RIO\joystick`. To find the structure for other aircraft browse to `DCSWorld\Mods\aircraft` and follow the folder structure from there until you find the `joystick`,`keyboard`,etc folders for that aircraft.
 
-<b>IMPORTANT:</b> For some aircraft the 1st and 3rd folders have different names, for example `F14\Input\F-14B-Pilot` make sure this structure is followed correctly or your inputs won't be found.
+<b>IMPORTANT:</b> For some aircraft the 1st and 3rd folders have different names, for example `F14\Input\F-14B-Pilot` make sure this structure is followed correctly or your inputs won't be found. 
 
 An example of the folder structure for some aircraft I have configured:
 
