@@ -1,7 +1,7 @@
 --[[
 	Insert this code into "DCSWorld\Scripts\Input\Data.lua" above the function "loadDeviceProfileFromFile"
 	Then add the line:
-		QuagglesKeybindInjector(filename, folder, env, result)
+		QuagglesInputCommandInjector(filename, folder, env, result)
 	into the "loadDeviceProfileFromFile" function below the line:
 		status, result = pcall(f)
 ]]--
