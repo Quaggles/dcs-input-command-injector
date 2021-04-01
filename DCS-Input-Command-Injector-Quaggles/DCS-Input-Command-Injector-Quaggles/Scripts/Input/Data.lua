@@ -82,9 +82,9 @@ end
 	into the "loadDeviceProfileFromFile" function below the line:
 		status, result = pcall(f)
 ]]--
-local quagglesLogName = 'Quaggles.KeybindInjector'
+local quagglesLogName = 'Quaggles.InputCommandInjector'
 local quagglesLoggingEnabled = false
-local function QuagglesKeybindInjector(filename, folder, env, result)
+local function QuagglesInputCommandInjector(filename, folder, env, result)
 	-- Returns true if string starts with supplied string
 	local function StartsWith(String,Start)
 		return string.sub(String,1,string.len(Start))==Start
@@ -95,7 +95,7 @@ local function QuagglesKeybindInjector(filename, folder, env, result)
 	local targetPrefix = "./Mods/aircraft/"
 	if StartsWith(filename, targetPrefix) and StartsWith(folder, targetPrefix) then
 		-- Transform path to user folder
-		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."QuagglesKeybindInjector/")
+		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
 		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: '..newFileName) end
 
 		-- If the user has put a file there continue

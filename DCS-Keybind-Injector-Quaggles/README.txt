@@ -1,1 +1,0 @@
-Modifies the DCS control scripts to allow merging of user configured keybinds in "Saved Games/DCS/" without modifying the original source files

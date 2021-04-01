@@ -1,0 +1,1 @@
+Modifies the DCS control scripts to allow merging of user configured input commands from "Saved Games/DCS/" without modifying the original source files: https://github.com/Quaggles/dcs-input-command-injector/
