@@ -8,7 +8,7 @@ A mod that allows you to configure custom input commands inside your `Saved Game
 
 ## The goal of this mod
 
-Commonly in DCS users with unique input systems will need to create custom input command to allow them to use certain aircraft functions with their HOTAS. Some examples are:
+Commonly in DCS users with unique input systems will need to create custom input commands to allow them to use certain aircraft functions with their HOTAS. Some examples are:
 
 * Configuring 3 way switches on a Thrustmaster Warthog HOTAS to control switches the module developer never intended to be controlled by a 3 way switch
 * Configuring actions that only trigger a cockpit switch while a button is held, for example using the trigger safety on a VKB Gunfighter Pro to turn on Master Arm while it's flipped down and then turn off Master Arm when flipped up
@@ -24,7 +24,7 @@ Until now the solution was to find the control definition file `DCSWorld\Mods\ai
 
 If you were using a mod manager such as OVGME if you reapplied your mod after an update and the developers had changed the input commands things could break and conflict.
 
-With this mod you should just need to re-enable it after every update with OVGME and your custom commands are safe with no need no change anything.
+With this mod you should just need to re-enable it after every DCS update with OVGME and your custom commands are safe with no need no change anything.
 
 ## Installation
 
