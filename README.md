@@ -6,6 +6,8 @@
 
 A mod that allows you to configure custom input commands inside your `Saved Games/DCS/` folder instead of inside your game folder, when DCS is run these commands are merged in with the default aircraft commands. This method avoids having to manually merge your command changes into each aircrafts default commands when DCS updates.
 
+After reading the install guide I'd recommend also looking at the **[DCS Community Keybinds](https://github.com/Munkwolf/dcs-community-keybinds)** project by *Munkwolf*, it uses this mod and contains many community requested input commands without you needing to code them manually.
+
 ## The goal of this mod
 
 Commonly in DCS users with unique input systems will need to create custom input commands to allow them to use certain aircraft functions with their HOTAS. Some examples are:
@@ -48,6 +50,8 @@ With this mod you should just need to re-enable it after every DCS update with O
 New commands are configured in the `Saved Games\DCS\InputCommands` directory, lets go through how to configure a hold command for the speedbrake on the F/A-18C Hornet.
 
 ### Setting the folder structure
+
+* ***Recommended*** Grab the premade structure with empty lua files, download and extract the [Input Commands folder](/InputCommands.zip) into your `C:/<User>/Saved Games/DCS/` directory
 
 For the F/A-18C the default input files are located in `DCSWorld\Mods\aircraft\FA-18C\Input\FA-18C`, inside this directory are folders with the generic names of your input devices, these can include `joystick`, `keyboard`, `mouse`, `trackir` and `headtracker`. Each generic input folder contains `default.lua` which is the default set of commands the developer has configured, this is an important reference when making your own commands. It also contains many lua files for automatic binding of common hardware like the Thrustmaster Warthog HOTAS but these can be ignored (`*.diff.lua`).
 
