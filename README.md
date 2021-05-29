@@ -147,7 +147,7 @@ Note: May get broken by Heatblur at any time and could be considered unscrupulou
 
 # FAQ
 ## My new input commands aren't showing up ingame
-First look at `Saved Games\DCS\Logs\dcs.log` at the bottom is likely an error telling you what went wrong in your code, for finding syntax errors in lua I would recommend Visual Studio Code with the vscode-lua extension, it should highlight them all in red for you making it easy to find that missing comma 😄
+First look at `Saved Games\DCS\Logs\dcs.log` at the bottom is likely an error telling you what went wrong in your code, for finding syntax errors in lua I would recommend [Visual Studio Code](https://code.visualstudio.com/) with the [vscode-lua extension](https://marketplace.visualstudio.com/items?itemName=trixnz.vscode-lua), it should highlight them all in red for you making it easy to find that missing comma 😄
 
 If you have no errors open the mod version of `Scripts\Input\Data.lua` and find the line `local quagglesLoggingEnabled = false` and set it to `true` you will get outputs in the `Saved Games\DCS\Logs\dcs.log` file as the script tries to handle every lua control file, it will tell you the path to the files it is trying to find in your Saved Games folder so you can ensure your folder structure is correct. Remember `../` in a path means get the parent directory.
 
