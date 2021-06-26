@@ -15,8 +15,15 @@ local function QuagglesInputCommandInjector(filename, folder, env, result)
 
 	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of: '..filename) end
 	-- Only operate on files that are in this folder
-	local targetPrefix = "./Mods/aircraft/"
-	if StartsWith(filename, targetPrefix) and StartsWith(folder, targetPrefix) then
+	local targetPrefixForAircrafts = "./Mods/aircraft/"
+	local targetPrefixForConfig = "./Config/Input/"
+	local targetPrefix = nil
+	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
+		targetPrefix = targetPrefixForAircrafts
+	elseif StartsWith(filename, targetPrefixForConfig) and StartsWith(folder, targetPrefixForConfig) then
+		targetPrefix = targetPrefixForConfig
+	end
+	if targetPrefix then
 		-- Transform path to user folder
 		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
 		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: '..newFileName) end
