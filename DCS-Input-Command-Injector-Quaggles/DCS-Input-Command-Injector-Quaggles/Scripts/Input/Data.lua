@@ -205,7 +205,7 @@ local function setProfileModified_(profile, modified)
 	
 	local uiProfileName = getUiProfileName()
 	
-	if getProfileName_(profile) == uiProfileName then
+	if getProfileName_(profile) == uiProfileName and modified then
 		-- после изменения слоя UiLayer в командах юнитов могут появиться/исчезнуть конфликты
 		-- поэтому загруженные юниты нужно загрузить заново
 		local profilesToUnload = {}
@@ -310,6 +310,16 @@ local function getProfileModifiers(profileName)
 	end	
 	
 	return modifiers
+end
+
+local function getProfileModified(profileName)
+	local profile = findProfile_(profileName)
+	
+	if profile then
+		return getProfileModified_(profile)
+	end
+
+	return false
 end
 
 local function getProfileCategories_(profile)
@@ -747,9 +757,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 		local status
 		
 		status, result = pcall(f)
-
 		QuagglesInputCommandInjector(filename, folder, env, result)
-		
 		if status then
 			if nonLocalized then
 				for i, keyCommand in ipairs(result.keyCommands or {}) do
@@ -2433,7 +2441,7 @@ end
 
 local function saveChanges()
 	local devices = InputUtils.getDevices()
-	
+
 	for i, profile in ipairs(profiles_) do
 		if getProfileLoaded_(profile) and getProfileModified_(profile) then
 			local profileName = getProfileName_(profile)
@@ -2775,6 +2783,7 @@ return {
 	getProfileNameByUnitName			= getProfileNameByUnitName,
 	getProfileUnitName					= getProfileUnitName,
 	getProfileModifiers					= getProfileModifiers,
+	getProfileModified					= getProfileModified,
 	getProfileCategoryNames				= getProfileCategoryNames,
 	getProfileKeyCommands				= getProfileKeyCommands,
 	getProfileKeyCommand				= getProfileKeyCommand,
