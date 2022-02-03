@@ -16,11 +16,14 @@ local function QuagglesInputCommandInjector(filename, folder, env, result)
 	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of: '..filename) end
 	-- Only operate on files that are in this folder
 	local targetPrefixForAircrafts = "./Mods/aircraft/"
-	local targetPrefixForConfig = "./Config/Input/"
+	local targetPrefixForDotConfig = "./Config/Input/"
+	local targetPrefixForConfig    = "Config/Input/"
 	local targetPrefix = nil
 	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
 		targetPrefix = targetPrefixForAircrafts
-	elseif StartsWith(filename, targetPrefixForConfig) and StartsWith(folder, targetPrefixForConfig) then
+	elseif StartsWith(filename, targetPrefixForDotConfig) and StartsWith(folder, targetPrefixForDotConfig) then
+		targetPrefix = targetPrefixForDotConfig
+	elseif StartsWith(filename, targetPrefixForConfig) then
 		targetPrefix = targetPrefixForConfig
 	end
 	if targetPrefix then
