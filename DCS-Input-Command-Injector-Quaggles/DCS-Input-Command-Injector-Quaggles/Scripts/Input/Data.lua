@@ -93,11 +93,14 @@ local function QuagglesInputCommandInjector(filename, folder, env, result)
 	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of: '..filename) end
 	-- Only operate on files that are in this folder
 	local targetPrefixForAircrafts = "./Mods/aircraft/"
-	local targetPrefixForConfig = "./Config/Input/"
+	local targetPrefixForDotConfig = "./Config/Input/"
+	local targetPrefixForConfig    = "Config/Input/"
 	local targetPrefix = nil
 	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
 		targetPrefix = targetPrefixForAircrafts
-	elseif StartsWith(filename, targetPrefixForConfig) and StartsWith(folder, targetPrefixForConfig) then
+	elseif StartsWith(filename, targetPrefixForDotConfig) and StartsWith(folder, targetPrefixForDotConfig) then
+		targetPrefix = targetPrefixForDotConfig
+	elseif StartsWith(filename, targetPrefixForConfig) then
 		targetPrefix = targetPrefixForConfig
 	end
 	if targetPrefix then
@@ -576,6 +579,14 @@ local default_assignments =
 		roll	= 'JOY_X',
 		thrust	= 'JOY_Z',
 		fire	= 'JOY_BTN14',
+	},
+	["SideWinder Force Feedback 2 Joystick"] = 
+	{ 
+		thrust	= 'JOY_SLIDER1',
+		pitch	= 'JOY_Y',
+		roll	= 'JOY_X',
+		rudder	= 'JOY_RZ',
+		fire	= 'JOY_BTN1',
 	},
 }
 
