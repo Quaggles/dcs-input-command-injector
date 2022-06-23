@@ -5,6 +5,7 @@ local U					= require('me_utilities')
 local Serializer		= require('Serializer')
 local textutil			= require('textutil')
 local i18n				= require('i18n')
+local log 				= require('log')
 
 local _ = i18n.ptranslate
 
@@ -590,7 +591,7 @@ local default_assignments =
 	},
 }
 
-local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
+local function loadDeviceProfileFromFile(filename, deviceGenericName, folder,keep_G_untouched)
 	local f, err = loadfile(filename)
 	local result
 
@@ -621,6 +622,13 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 	
 	-- deviceGenericName will be used for automatic combo selection 
 	if f then
+		
+		-- cleanup cockpit devices variable [ACS-1111: FC3 kneeboard pages cannot be turned in some cases](https://jira.eagle.ru/browse/ACS-1111)
+		local old_dev 			= _G.devices
+		if not keep_G_untouched then
+			_G.devices 				= nil
+		end
+	
 		printLog('File[' .. filename .. '] opened successfully!')
 		
 		local noLocalize = function(s)
@@ -628,6 +636,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 		end
 		
 		local setupEnv = function(env)
+			env.devices  			= 	nil 
 			env.folder			 	=	folder
 			env.filename		 	=	filename
 			env.deviceName		 	=	deviceGenericName		
@@ -637,7 +646,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 				local old_filename	= env.filename
 				local old_folder	= env.folder 
 				local fnew			= folder_new or old_folder
-				local res			= loadDeviceProfileFromFile(filename,deviceGenericName,fnew)
+				local res			= loadDeviceProfileFromFile(filename,deviceGenericName,fnew,true)
 				
 				env.filename		= old_filename
 				env.folder			= old_folder
@@ -750,7 +759,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 					end				
 					
 				else
-					print('ERROR:', res)
+					log.error(res);
 				end
 				
 				insideLocalizationHintsFuncCounter_ = insideLocalizationHintsFuncCounter_ - 1
@@ -781,9 +790,12 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder)
 					axisCommand.categoryHint	= nonLocalized.axisCommands[i].categoryHint
 				end
 			end
-		else
-			-- это ошибка в скрипте! ее быть не должно!
-			print('ERROR:', result)
+		else -- это ошибка в скрипте! ее быть не должно!
+			log.error(result);
+		end
+
+		if not keep_G_untouched then
+			_G.devices = old_dev
 		end
 	else
 		printLog(err)
@@ -2320,7 +2332,7 @@ local function storeDeviceProfileDiffIntoFile_(filename, diff)
 		file:write('return diff')
 		file:close()
 	else
-		printLog(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
+		log.error(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
 	end
 end
 
@@ -2427,7 +2439,7 @@ local function saveProfileModifiers_(profileName, folder)
 			file:write('return modifiers')
 			file:close()
 		else
-			printLog(string.format('Cannot save modifiers into file[%s]! Error %s', filename, err))
+			log.error(string.format('Cannot save modifiers into file[%s]! Error %s', filename, err))
 		end
 	end
 end
@@ -2446,7 +2458,7 @@ local function saveDisabledDevices()
 		file:write('return disabled')
 		file:close()
 	else
-		printLog(string.format('Cannot save disabled devices into file[%s]! Error %s', filename, err))
+		log.error(string.format('Cannot save disabled devices into file[%s]! Error %s', filename, err))
 	end
 end
 
@@ -2697,7 +2709,7 @@ local function saveFullDeviceProfile(profileName, deviceName, filename)
 		file:write('}')
 		file:close()
 	else
-		printLog(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
+		log.error(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
 	end
 end
 
