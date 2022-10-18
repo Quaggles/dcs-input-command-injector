@@ -1,10 +1,10 @@
-local InputUtils		= require('Input.Utils')
-local Input				= require('Input')
-local lfs				= require('lfs')
+local InputUtils		= require('Input.Utils'	)
+local Input				= require('Input'		)
+local lfs				= require('lfs'			)
 local U					= require('me_utilities')
-local Serializer		= require('Serializer')
-local textutil			= require('textutil')
-local i18n				= require('i18n')
+local Serializer		= require('Serializer'	)
+local textutil			= require('textutil'	)
+local i18n				= require('i18n'		)
 local log 				= require('log')
 
 local _ = i18n.ptranslate
@@ -22,6 +22,7 @@ local uiProfileName_
 local disabledDevices_ 		= {}
 local disabledFilename_ 	= 'disabled.lua'
 local printLogEnabled_		= true
+local printFileLogEnabled_	= false
 
 local turnLocalizationHintsOn_				= false
 local insideLocalizationHintsFuncCounter_	= 0
@@ -37,29 +38,37 @@ local function printLog(...)
 	end	
 end
 
+local function printFileLog(...)
+	if printFileLogEnabled_ then
+		print('Input:', ...)
+	end	
+end
+
 local function initialize(userConfigPath, sysConfigPath)
 	userConfigPath_ = userConfigPath
 	sysConfigPath_ = sysConfigPath
 	sysPath_ = sysConfigPath .. 'Aircrafts/'
 	
-	local f, err = loadfile(userConfigPath_ .. disabledFilename_)
-	
-	if f then
-		local ok, res = pcall(f)
+	if userConfigPath_ then
+		local f, err = loadfile(userConfigPath_ .. disabledFilename_)
 		
-		if ok then
-			disabledDevices_ = res.devices
+		if f then
+			local ok, res = pcall(f)
 			
-			for deviceName, disabled in pairs(disabledDevices_) do
-				Input.setDeviceDisabled(deviceName, true)
+			if ok then
+				disabledDevices_ = res.devices
+				
+				for deviceName, disabled in pairs(disabledDevices_) do
+					Input.setDeviceDisabled(deviceName, true)
+				end
+				
+				Input.setPnPDisabled(res.pnp)
+			else
+				printLog('Unable to load disabled devices!', res)
 			end
-			
-			Input.setPnPDisabled(res.pnp)
-		else
-			printLog('Unable to load disabled devices!', res)
-		end
+		end	
 	end
-	
+
 	local f, err = loadfile(lfs.writedir() .. 'Config/autoexec.cfg')
 	
 	if f then
@@ -72,65 +81,6 @@ local function initialize(userConfigPath, sysConfigPath)
 		
 		if ok then
 			turnLocalizationHintsOn_ = env.input_localization_hints_on
-		end
-	end
-end
-
---[[
-	Insert this code into "DCSWorld\Scripts\Input\Data.lua" above the function "loadDeviceProfileFromFile"
-	Then add the line:
-		QuagglesInputCommandInjector(filename, folder, env, result)
-	into the "loadDeviceProfileFromFile" function below the line:
-		status, result = pcall(f)
-]]--
-local quagglesLogName = 'Quaggles.InputCommandInjector'
-local quagglesLoggingEnabled = false
-local function QuagglesInputCommandInjector(filename, folder, env, result)
-	-- Returns true if string starts with supplied string
-	local function StartsWith(String,Start)
-		return string.sub(String,1,string.len(Start))==Start
-	end
-
-	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of: '..filename) end
-	-- Only operate on files that are in this folder
-	local targetPrefixForAircrafts = "./Mods/aircraft/"
-	local targetPrefixForDotConfig = "./Config/Input/"
-	local targetPrefixForConfig    = "Config/Input/"
-	local targetPrefix = nil
-	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
-		targetPrefix = targetPrefixForAircrafts
-	elseif StartsWith(filename, targetPrefixForDotConfig) and StartsWith(folder, targetPrefixForDotConfig) then
-		targetPrefix = targetPrefixForDotConfig
-	elseif StartsWith(filename, targetPrefixForConfig) then
-		targetPrefix = targetPrefixForConfig
-	end
-	if targetPrefix then
-		-- Transform path to user folder
-		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
-		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: '..newFileName) end
-
-		-- If the user has put a file there continue
-		if lfs.attributes(newFileName) then
-			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: '..newFileName) end
-			--Configure file to run in same environment as the default command entry file
-			local f, err = loadfile(newFileName)
-			if err ~= nil then
-				log.write(quagglesLogName, log.ERROR, '------Failure loading: '..tostring(newFileName).." Error: "..tostring(err))
-				return
-			else
-				setfenv(f, env)
-				local statusInj, resultInj
-				statusInj, resultInj = pcall(f)
-
-				-- Merge resulting tables
-				if statusInj then
-					if resultInj.keyCommands then env.join(result.keyCommands, resultInj.keyCommands) end
-					if resultInj.axisCommands then env.join(result.axisCommands, resultInj.axisCommands) end
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge successful') end
-				else
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge failed: '..tostring(statusInj)) end
-				end
-			end
 		end
 	end
 end
@@ -589,7 +539,80 @@ local default_assignments =
 		rudder	= 'JOY_RZ',
 		fire	= 'JOY_BTN1',
 	},
+	["R-VPC Stick MT-50CM2"] = 
+	{
+		pitch	= 'JOY_Y',
+		roll	= 'JOY_X',
+		rudder	= 'JOY_Z',
+		fire	= 'JOY_BTN1',
+	},
+	["L-VPC Throttle MT-50CM3"] = 
+	{
+		thrust_left	 = 'JOY_RX',
+		thrust_right = 'JOY_RY',
+	}
 }
+
+local wizard_assigments
+--[[
+	Insert this code into "DCSWorld\Scripts\Input\Data.lua" above the function "loadDeviceProfileFromFile"
+	Then add the line:
+		QuagglesInputCommandInjector(filename, folder, env, result)
+	into the "loadDeviceProfileFromFile" function below the line:
+		status, result = pcall(f)
+]]--
+local quagglesLogName = 'Quaggles.InputCommandInjector'
+local quagglesLoggingEnabled = false
+local function QuagglesInputCommandInjector(filename, folder, env, result)
+	-- Returns true if string starts with supplied string
+	local function StartsWith(String,Start)
+		return string.sub(String,1,string.len(Start))==Start
+	end
+
+	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of: '..filename) end
+	-- Only operate on files that are in this folder
+	local targetPrefixForAircrafts = "./Mods/aircraft/"
+	local targetPrefixForDotConfig = "./Config/Input/"
+	local targetPrefixForConfig    = "Config/Input/"
+	local targetPrefix = nil
+	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
+		targetPrefix = targetPrefixForAircrafts
+	elseif StartsWith(filename, targetPrefixForDotConfig) and StartsWith(folder, targetPrefixForDotConfig) then
+		targetPrefix = targetPrefixForDotConfig
+	elseif StartsWith(filename, targetPrefixForConfig) then
+		targetPrefix = targetPrefixForConfig
+	end
+	if targetPrefix then
+		-- Transform path to user folder
+		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
+		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: '..newFileName) end
+
+		-- If the user has put a file there continue
+		if lfs.attributes(newFileName) then
+			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: '..newFileName) end
+			--Configure file to run in same environment as the default command entry file
+			local f, err = loadfile(newFileName)
+			if err ~= nil then
+				log.write(quagglesLogName, log.ERROR, '------Failure loading: '..tostring(newFileName).." Error: "..tostring(err))
+				return
+			else
+				setfenv(f, env)
+				local statusInj, resultInj
+				statusInj, resultInj = pcall(f)
+
+				-- Merge resulting tables
+				if statusInj then
+					if resultInj.keyCommands then env.join(result.keyCommands, resultInj.keyCommands) end
+					if resultInj.axisCommands then env.join(result.axisCommands, resultInj.axisCommands) end
+					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge successful') end
+				else
+					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge failed: '..tostring(statusInj)) end
+				end
+			end
+		end
+	end
+end
+
 
 local function loadDeviceProfileFromFile(filename, deviceGenericName, folder,keep_G_untouched)
 	local f, err = loadfile(filename)
@@ -629,7 +652,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder,kee
 			_G.devices 				= nil
 		end
 	
-		printLog('File[' .. filename .. '] opened successfully!')
+		printFileLog('File[' .. filename .. '] opened successfully!')
 		
 		local noLocalize = function(s)
 			return s
@@ -657,7 +680,33 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder,kee
 			end
 											
 			env.defaultDeviceAssignmentFor = function (assignment_name)
+
+				if not wizard_assigments and userConfigPath_ ~= nil then
+					local f, err = loadfile(userConfigPath_ .. 'wizard.lua')
+					
+					if f then
+						wizard_assigments = f()
+					else
+						wizard_assigments = {}
+					end
+				end
+				
 				local assignments	= nil
+				
+				if deviceGenericName ~= nil then
+					assignments = wizard_assigments[deviceGenericName]
+					
+					if assignments then
+						local assignment = assignments[assignment_name]
+						
+						if assignment then
+							return {assignment}
+						else
+							assignments = nil -- в визарде на эту команду ничего не назначено выбираем дефолтные
+						end
+					end
+				end
+
 				--print("|"..deviceGenericName.."|")
 				if	  deviceGenericName ~= nil then
 					  assignments = default_assignments[deviceGenericName]
@@ -798,7 +847,7 @@ local function loadDeviceProfileFromFile(filename, deviceGenericName, folder,kee
 			_G.devices = old_dev
 		end
 	else
-		printLog(err)
+		printFileLog(err)
 	end
 	
 	return result, err
@@ -817,11 +866,11 @@ local function loadDeviceProfileDiffFromFile_(filename)
 	local func, err = loadfile(filename)
 	
 	if func then
-		printLog('File[' .. filename .. '] opened successfully!')
+		printFileLog('File[' .. filename .. '] opened successfully!')
 		
 		return func()
 	else
-		printLog(err)
+		printFileLog(err)
 	end
 end
 
@@ -914,7 +963,7 @@ loadProfileDefaultDeviceProfile_ = function(profile, deviceName)
 			applyDiffToDeviceProfile_(result, templateDiff)
 		end
 	elseif #errors > 0 then
-		printLog('Profile [' .. getProfileName_(profile) .. '] cannot load device [' .. deviceName .. '] default profile!', table.concat(errors, '\n'))
+		printFileLog('Profile [' .. getProfileName_(profile) .. '] cannot load device [' .. deviceName .. '] default profile!', table.concat(errors, '\n'))
 	end
 
 	return result
@@ -1166,7 +1215,7 @@ local function loadDeviceProfile_(profile, deviceName)
 	end
 		
 	if not result and #errors > 0 then
-		printLog('Profile [' .. getProfileName_(profile) .. '] cannot load device [' .. deviceName .. '] profile!', table.concat(errors, '\n'))
+		printFileLog('Profile [' .. getProfileName_(profile) .. '] cannot load device [' .. deviceName .. '] profile!', table.concat(errors, '\n'))
 	end
 
 	return result
@@ -1835,12 +1884,15 @@ local function createAxisFilter(filter)
 
 	local result = {}
 
-	result.deadzone = filter.deadzone or 0
-	result.saturationX = filter.saturationX or 1
-	result.saturationY = filter.saturationY or 1
-	result.curvature = U.copyTable(nil, filter.curvature or {0})
-	result.slider = not (not filter.slider)
-	result.invert = not (not filter.invert)
+	result.deadzone				= filter.deadzone			or 0
+	result.saturationX			= filter.saturationX		or 1
+	result.saturationY			= filter.saturationY		or 1
+	result.hardwareDetentMax	= filter.hardwareDetentMax	or 0
+	result.hardwareDetentAB		= filter.hardwareDetentAB	or 0
+	result.hardwareDetent		= not (not filter.hardwareDetent)
+	result.slider				= not (not filter.slider		)
+	result.invert				= not (not filter.invert		)	
+	result.curvature			= U.copyTable(nil, filter.curvature or {0})
 
 	return result
 end
@@ -1915,11 +1967,11 @@ local function loadModifiersFromFolder_(folder)
 	local f, err	= loadfile(filename)
 
 	if f then
-		printLog('File[' .. filename .. '] opened successfully!')
+		printFileLog('File[' .. filename .. '] opened successfully!')
 		
 		result = f()
 	else
-		printLog(err)
+		printFileLog(err)
 	end
 
 	return result, err
@@ -1932,7 +1984,7 @@ local function loadProfileUserModifiers_(profile, errors)
 	local folder = getProfileUserConfigPath_(profile)
 	local modifiers = collectErrors_(errors, loadModifiersFromFolder_(folder))
 	
-	if not modifiers then
+	if not modifiers and userConfigPath_ ~= nil then
 		-- в предыдущей версии инпута измененные модификаторы 
 		-- располагались в пользовательской папке с профилями
 		folder = userConfigPath_
@@ -2131,17 +2183,28 @@ local function getForceFeedbackDiff_(profile, deviceName)
 end
 
 local function compareFilters_(filter1, filter2)
-	if	filter1.deadzone		== filter2.deadzone and
-		filter1.saturationX		== filter2.saturationX and
-		filter1.saturationY		== filter2.saturationY and
-		filter1.slider			== filter2.slider and
-		filter1.invert			== filter2.invert and
-		#filter1.curvature		== #filter2.curvature then
+	if	filter1.deadzone			== filter2.deadzone				and
+		filter1.saturationX			== filter2.saturationX			and
+		filter1.saturationY			== filter2.saturationY			and
+		filter1.hardwareDetent		== filter2.hardwareDetent		and
+		filter1.slider				== filter2.slider				and
+		filter1.invert				== filter2.invert				and
+		#filter1.curvature			== #filter2.curvature then
 		
 		for i, value in ipairs(filter1.curvature) do
 			if value ~= filter2.curvature[i] then
 				return false
 			end
+		end
+		
+		if filter1.hardwareDetent and filter2.hardwareDetent then
+			if filter1.hardwareDetentMax ~= filter1.hardwareDetentMax then
+				return false
+			end
+			
+			if filter1.hardwareDetentAB ~= filter1.hardwareDetentAB then
+				return false
+			end			
 		end
 		
 		return true
@@ -2178,9 +2241,10 @@ local function cleanupCombo_(combo, checkDefaultFilter)
 	end
 	
 	return {
-		key = combo.key,
-		reformers = reformers,
-		filter = filter,
+		key 		= combo.key,
+		reformers 	= reformers,
+		filter		= filter,
+		column 		= combo.column,
 	}
 end
 
@@ -2219,7 +2283,7 @@ local function getCommandRemovedCombos_(command, defaultCommand, deviceName)
 end
 
 local function getCommandChangedFilterCombos_(command, defaultCommand, deviceName)
-	local result = {}
+	local result
 	local combos = command.combos[deviceName]
 	local defaultCombos = defaultCommand.combos[deviceName]	
 	
@@ -2231,29 +2295,45 @@ local function getCommandChangedFilterCombos_(command, defaultCommand, deviceNam
 				local defaultCombo = defaultCombos[index]
 				
 				if not getFiltersAreEqual_(combo.filter, defaultCombo.filter) then
+					result = result or {}
 					table.insert(result, cleanupCombo_(combo))
 				end
 			end
 		end
 	end
-	
-	if next(result) then
-		return result	
-	end	
+	return result	
 end
 
-local function getKeyCommandDiff_(command, defaultCommand, deviceName)
-	local addedCombos = getCommandAddedCombos_(command, defaultCommand, deviceName)
-	local removedCombos = getCommandRemovedCombos_(command, defaultCommand, deviceName)
-	
+local function getCommandDiffCommon_(command, defaultCommand, deviceName)
+	local addedCombos 			= getCommandAddedCombos_  (command, defaultCommand, deviceName)
+	local removedCombos 		= getCommandRemovedCombos_(command, defaultCommand, deviceName)
+		
 	if addedCombos or removedCombos then
 		return {
-			name = command.name,
-			added = addedCombos,
-			removed = removedCombos,
+			name    = command.name, 
+			added   = addedCombos, 
+			removed = removedCombos, 
 		}
 	end
+	return nil
 end
+
+local function getAxisCommandDiff_(command, defaultCommand, deviceName)
+
+	local res 					= getCommandDiffCommon_(command, defaultCommand, deviceName)
+	local changedFilterCombos 	= getCommandChangedFilterCombos_(command, defaultCommand, deviceName)
+	if changedFilterCombos then
+		if not res then 
+			res = {
+				name    = command.name, 
+			}
+		end
+		res.changed = changedFilterCombos
+	end
+	return res
+end
+
+local getKeyCommandDiff_ = getCommandDiffCommon_
 
 local function getKeyDiffs_(profile, deviceName)
 	local diffs = {}
@@ -2279,21 +2359,6 @@ local function getKeyDiffs_(profile, deviceName)
 	
 	if next(diffs) then
 		return diffs
-	end
-end
-
-local function getAxisCommandDiff_(command, defaultCommand, deviceName)
-	local addedCombos = getCommandAddedCombos_(command, defaultCommand, deviceName)
-	local removedCombos = getCommandRemovedCombos_(command, defaultCommand, deviceName)
-	local changedFilterCombos = getCommandChangedFilterCombos_(command, defaultCommand, deviceName)
-		
-	if addedCombos or removedCombos or changedFilterCombos then
-		return {
-			name = command.name, 
-			added = addedCombos, 
-			removed = removedCombos, 
-			changed = changedFilterCombos,
-		}
 	end
 end
 
@@ -2445,6 +2510,9 @@ local function saveProfileModifiers_(profileName, folder)
 end
 
 local function saveDisabledDevices()	
+	if userConfigPath_ == nil then
+		return
+	end
 	local filename = userConfigPath_ .. disabledFilename_
 	local file, err = io.open(filename, 'w')
 		
