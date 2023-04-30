@@ -13,7 +13,7 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 		return string.sub(String,1,string.len(Start))==Start
 	end
 
-	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of: '..filename) end
+	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of type: "'..deviceGenericName..'", filename: "'..filename..'"') end
 	-- Only operate on files that are in this folder
 	local targetPrefixForAircrafts = "./Mods/aircraft/"
 	local targetPrefixForDotConfig = "./Config/Input/"
@@ -29,15 +29,15 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 	if targetPrefix then
 		-- Transform path to user folder
 		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
-		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: '..newFileName) end
+		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: "'..newFileName..'"') end
 
 		-- If the user has put a file there continue
 		if lfs.attributes(newFileName) then
-			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: '..newFileName) end
+			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: "'..newFileName..'"') end
 			--Configure file to run in same environment as the default command entry file
 			local f, err = loadfile(newFileName)
 			if err ~= nil then
-				log.write(quagglesLogName, log.ERROR, '------Failure loading: '..tostring(newFileName).." Error: "..tostring(err))
+				log.write(quagglesLogName, log.ERROR, '------Failure loading: "'..tostring(newFileName)..'"'..' Error: "'..tostring(err)..'"')
 				return
 			else
 				setfenv(f, env)
@@ -60,7 +60,7 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 					end
 					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge successful') end
 				else
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge failed: '..tostring(statusInj)) end
+					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge failed: "'..tostring(statusInj)..'"') end
 				end
 			end
 		end
