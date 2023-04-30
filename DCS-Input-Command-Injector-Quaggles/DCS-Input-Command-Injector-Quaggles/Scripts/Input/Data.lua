@@ -602,7 +602,7 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 
 				-- Merge resulting tables
 				if statusInj then
-					if result.axisCommands and resultInj.keyCommands then -- If both exist then join
+					if result.keyCommands and resultInj.keyCommands then -- If both exist then join
 						env.join(result.keyCommands, resultInj.keyCommands)
 					elseif resultInj.keyCommands then -- If just the injected one exists then use it
 						result.keyCommands = resultInj.keyCommands
