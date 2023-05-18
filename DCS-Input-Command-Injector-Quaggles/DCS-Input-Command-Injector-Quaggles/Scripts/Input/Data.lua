@@ -876,9 +876,15 @@ local function loadDeviceProfileDiffFromFile_(filename)
 	local func, err = loadfile(filename)
 	
 	if func then
-		printFileLog('File[' .. filename .. '] opened successfully!')
-		
-		return func()
+		local env = {}
+		setfenv(func, env)
+		local ok, res = pcall(func)
+		if ok then
+			printFileLog('File[' .. filename .. '] opened successfully!')
+			return res
+		else
+			log.error('Input Error:' ..res)
+		end
 	else
 		printFileLog(err)
 	end
