@@ -505,39 +505,34 @@ local createAxisFilter
 	into the "loadDeviceProfileFromFile" function below the line:
 		status, result = pcall(f)
 ]]--
-local quagglesLogName = 'Quaggles.InputCommandInjector'
-local quagglesLoggingEnabled = false
-local function QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
+function QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
 	-- Returns true if string starts with supplied string
 	local function StartsWith(String,Start)
 		return string.sub(String,1,string.len(Start))==Start
 	end
 
-	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of type: "'..deviceGenericName..'", filename: "'..filename..'"') end
+	log.write('Quaggles.InputCommandInjector', log.INFO, 'Detected loading of type: "'..deviceGenericName..'", filename: "'..filename..'"')
 	-- Only operate on files that are in this folder
-	local targetPrefixForAircrafts = "./Mods/aircraft/"
-	local targetPrefixForDotConfig = "./Config/Input/"
-	local targetPrefixForConfig    = "Config/Input/"
 	local targetPrefix = nil
-	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
-		targetPrefix = targetPrefixForAircrafts
-	elseif StartsWith(filename, targetPrefixForDotConfig) and StartsWith(folder, targetPrefixForDotConfig) then
-		targetPrefix = targetPrefixForDotConfig
-	elseif StartsWith(filename, targetPrefixForConfig) then
-		targetPrefix = targetPrefixForConfig
+	if StartsWith(filename, "./Mods/aircraft/") and StartsWith(folder, "./Mods/aircraft/") then
+		targetPrefix = "./Mods/aircraft/"
+	elseif StartsWith(filename, "./Config/Input/") and StartsWith(folder, "./Config/Input/") then
+		targetPrefix = "./Config/Input/"
+	elseif StartsWith(filename, "Config/Input/") then
+		targetPrefix = "Config/Input/"
 	end
 	if targetPrefix then
 		-- Transform path to user folder
 		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
-		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: "'..newFileName..'"') end
+		log.write('Quaggles.InputCommandInjector', log.INFO, '--Translated path: "'..newFileName..'"')
 
 		-- If the user has put a file there continue
 		if lfs.attributes(newFileName) then
-			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: "'..newFileName..'"') end
+			log.write('Quaggles.InputCommandInjector', log.INFO, '----Found merge at: "'..newFileName..'"')
 			--Configure file to run in same environment as the default command entry file
 			local f, err = loadfile(newFileName)
 			if err ~= nil then
-				log.write(quagglesLogName, log.ERROR, '------Failure loading: "'..tostring(newFileName)..'"'..' Error: "'..tostring(err)..'"')
+				log.write('Quaggles.InputCommandInjector', log.ERROR, '------Failure loading: "'..tostring(newFileName)..'"'..' Error: "'..tostring(err)..'"')
 				return
 			else
 				setfenv(f, env)
@@ -558,15 +553,14 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 							result.axisCommands = resultInj.axisCommands
 						end
 					end
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge successful') end
+					log.write('Quaggles.InputCommandInjector', log.INFO, '------Merge successful')
 				else
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge failed: "'..tostring(statusInj)..'"') end
+					log.write('Quaggles.InputCommandInjector', log.INFO, '------Merge failed: "'..tostring(statusInj)..'"')
 				end
 			end
 		end
 	end
 end
-
 
 local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_untouched)
 	local f, err = loadfile(filename)
@@ -784,7 +778,8 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 		local status
 		
 		status, result = pcall(f)
-		QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
+		QuagglesInputCommandInjector(deviceName, filename, folder, env, result)
+		
 		if status then
 			if nonLocalized then
 				for i, keyCommand in ipairs(result.keyCommands or {}) do
