@@ -1,13 +1,14 @@
 --[[
-	Insert this code into "DCSWorld\Scripts\Input\Data.lua" above the function "loadDeviceProfileFromFile"
+	Insert this code into "DCSWorld\Scripts\Input\Data.lua" inside the function declaration for "loadDeviceProfileFromFile"
+		search for the line 'local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_untouched)' and paste this function below it
 	Then add the line:
 		QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
 	into the "loadDeviceProfileFromFile" function below the line:
 		status, result = pcall(f)
 ]]--
-local quagglesLogName = 'Quaggles.InputCommandInjector'
-local quagglesLoggingEnabled = false
 local function QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
+	local quagglesLogName = 'Quaggles.InputCommandInjector'
+	local quagglesLoggingEnabled = false
 	-- Returns true if string starts with supplied string
 	local function StartsWith(String,Start)
 		return string.sub(String,1,string.len(Start))==Start
