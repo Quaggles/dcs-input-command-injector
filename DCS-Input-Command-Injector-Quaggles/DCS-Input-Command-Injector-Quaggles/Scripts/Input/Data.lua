@@ -9,6 +9,14 @@ local log 				= require('log')
 
 local _ = i18n.ptranslate
 
+--forward declaration 
+local unloadProfile
+local loadProfile
+local createAxisFilter 
+local applyDiffToDeviceProfile_
+local wizard_assigments
+local default_assignments
+
 local userConfigPath_
 local sysConfigPath_
 local sysPath_
@@ -28,10 +36,6 @@ local turnLocalizationHintsOn_				= false
 local insideLocalizationHintsFuncCounter_	= 0
 local insideExternalProfileFuncCounter_		= 0
 
-local function enablePrintToLog(enable)
-	printLogEnabled_ = enable
-end
-
 local function printLog(...)
 	if printLogEnabled_ then
 		print('Input:', ...)
@@ -42,47 +46,6 @@ local function printFileLog(...)
 	if printFileLogEnabled_ then
 		print('Input:', ...)
 	end	
-end
-
-local function initialize(userConfigPath, sysConfigPath)
-	userConfigPath_ = userConfigPath
-	sysConfigPath_ = sysConfigPath
-	sysPath_ = sysConfigPath .. 'Aircrafts/'
-	
-	if userConfigPath_ then
-		local f, err = loadfile(userConfigPath_ .. disabledFilename_)
-		
-		if f then
-			local ok, res = pcall(f)
-			
-			if ok then
-				disabledDevices_ = res.devices
-				
-				for deviceName, disabled in pairs(disabledDevices_) do
-					Input.setDeviceDisabled(deviceName, true)
-				end
-				
-				Input.setPnPDisabled(res.pnp)
-			else
-				printLog('Unable to load disabled devices!', res)
-			end
-		end	
-	end
-
-	local f, err = loadfile(lfs.writedir() .. 'Config/autoexec.cfg')
-	
-	if f then
-		local env = {}
-		
-		setmetatable(env, {__index = _G})
-		setfenv(f, env)
-		
-		local ok, res = pcall(f)
-		
-		if ok then
-			turnLocalizationHintsOn_ = env.input_localization_hints_on
-		end
-	end
 end
 
 -- итератор по всем комбинациям устройства для команды
@@ -111,10 +74,6 @@ local function commandCombos(command, deviceName)
 	end
 end
 
-local function getUnitMarker()
-	return 'Unit '
-end
-
 local function getUiProfileName()
 	if not uiProfileName_ then
 		local ProfileDatabase = require('Input.ProfileDatabase')
@@ -125,50 +84,19 @@ local function getUiProfileName()
 	return uiProfileName_
 end
 
-local function getProfileName_(profile)
-	return profile.name
-end
-
-local function getProfileUnitName_(profile)
-	return profile.unitName
-end
-
-local function getProfileFolder_(profile)
-	return profile.folder
-end
-
-local function getProfileModifiers_(profile)
-	return profile.modifiers
-end
-
-local function getProfileDefault_(profile)
-	return profile.default
-end
-
-local function getProfileVisible_(profile)
-	return profile.visible
-end
-
-local function getProfileLoadDefaultUnitProfile_(profile)
-	return profile.loadDefaultUnitProfile
-end
-
-local unloadProfile -- определена ниже
 local function setProfileModified_(profile, modified)
 	profile.modified = modified
 	
 	local uiProfileName = getUiProfileName()
 	
-	if getProfileName_(profile) == uiProfileName and modified then
+	if profile.name == uiProfileName and modified then
 		-- после изменения слоя UiLayer в командах юнитов могут появиться/исчезнуть конфликты
 		-- поэтому загруженные юниты нужно загрузить заново
 		local profilesToUnload = {}
 		
 		for i, p in ipairs(profiles_) do
-			local name = getProfileName_(p)
-			
-			if name ~= uiProfileName then
-				table.insert(profilesToUnload, name)
+			if p.name ~= uiProfileName then
+				table.insert(profilesToUnload, p.name)
 			end
 		end
 		
@@ -181,140 +109,20 @@ local function setProfileModified_(profile, modified)
 	end
 end
 
-local function getProfileModified_(profile)
-	return profile.modified
-end
-
-local function setProfileLoaded_(profile)
-	profile.loaded = true
-end
-
-local function getProfileLoaded_(profile)
-	return profile.loaded
-end
-
-local function getProfileNames()
-	local result = {}
-	
-	for i, profile in ipairs(profiles_) do
-		if getProfileVisible_(profile) then
-			table.insert(result, getProfileName_(profile))
-		end
-	end
-	
-	return result
-end
-
 local function findProfile_(profileName)
 	for i, profile in ipairs(profiles_) do
-		if getProfileName_(profile) == profileName then
+		if profile.name == profileName then
 			return profile
 		end
 	end
 end
 
-local function getProfileNameByUnitName(unitName)
-	local unitProfile
-	
-	for i, profile in ipairs(profiles_) do
-		if getProfileUnitName_(profile) == unitName then
-			unitProfile = profile
-			
-			break
-		end
-	end
-	
-	if not unitProfile then
-		unitProfile = aliases_[unitName]
-	end
-	
-	if unitProfile then
-		return getProfileName_(unitProfile)
-	end
-end
-
-local function getProfileUnitName(profileName)
-	local profile = findProfile_(profileName)
-	
-	if profile then
-		return getProfileUnitName_(profile)
-	end
-end
-
-local loadProfile
-
 local function getLoadedProfile_(profileName)	
 	local profile = findProfile_(profileName)
-	
-	if profile then
-		if not getProfileLoaded_(profile) then
-			loadProfile(profile)
-		end
+	if profile and not profile.loaded then
+		loadProfile(profile)
 	end
-	
 	return profile
-end
-
-local function getProfileModifiers(profileName)
-	local modifiers = {}
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		U.copyTable(modifiers, getProfileModifiers_(profile))
-	end	
-	
-	return modifiers
-end
-
-local function getProfileModified(profileName)
-	local profile = findProfile_(profileName)
-	
-	if profile then
-		return getProfileModified_(profile)
-	end
-
-	return false
-end
-
-local function getProfileCategories_(profile)
-	return profile.categories
-end
-
-local function getProfileCategoryNames(profileName)
-	local result = {}
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		if not getProfileLoaded_(profile) then
-			loadProfile(profile)
-		end
-		
-		local categories = getProfileCategories_(profile)
-		
-		if categories then
-			U.copyTable(result, categories)
-		end
-	end
-	
-	return result
-end
-
-local function getProfileKeyCommands_(profile)
-	return profile.keyCommands
-end
-
--- предварительное объявление
-local loadProfileDefaultDeviceProfile_
-
-local function getProfileDefaultDeviceProfiles_(profile)
-	local defaultDeviceProfiles = {}
-	local devices = InputUtils.getDevices()
-	
-	for i, deviceName in ipairs(devices) do
-		defaultDeviceProfiles[deviceName] = loadProfileDefaultDeviceProfile_(profile, deviceName)
-	end
-	
-	return defaultDeviceProfiles
 end
 
 local function validateDeviceProfileCommand_(profileName, command, deviceName)
@@ -349,69 +157,34 @@ local function validateDeviceProfileCommands_(profileName, commands, deviceName)
 end
 
 local function validateDeviceProfile_(profileName, deviceProfile, deviceName)	
-	validateDeviceProfileCommands_(profileName, deviceProfile.keyCommands, deviceName)
+	validateDeviceProfileCommands_(profileName, deviceProfile.keyCommands,  deviceName)
 	validateDeviceProfileCommands_(profileName, deviceProfile.axisCommands, deviceName)
-end
-
-local addProfileKeyCommands
-local addProfileAxisCommands
-
-local function loadProfileDefaultCommands_(profile)
-	local deviceProfiles = getProfileDefaultDeviceProfiles_(profile)	
-	local profileName = getProfileName_(profile)
-	local keyCommandsHashTable = {}
-	local axisCommandsHashTable = {}
-
-	for deviceName, deviceProfile in pairs(deviceProfiles) do
-		validateDeviceProfile_(profileName, deviceProfile, deviceName)
-		addProfileKeyCommands(profileName, deviceName, deviceProfile, keyCommandsHashTable)
-		addProfileAxisCommands(profileName, deviceName, deviceProfile, axisCommandsHashTable)
-	end
-	
-	profile.defaultKeyCommands = keyCommandsHashTable
-	profile.defaultAxisCommands = axisCommandsHashTable
-end
-
-local function getProfileDefaultKeyCommands_(profile)
-	return profile.defaultKeyCommands
-end
-
-local function getProfileAxisCommands_(profile)
-	return profile.axisCommands
-end
-
-local function getProfileDefaultAxisCommands_(profile)
-	return profile.defaultAxisCommands
 end
 
 local function getCommandBelongsToCategory(category, command)
 	local result = true
-	
 	if category then
 		result = command.category == category
-		
 		if not result then
 			if 'table' == type(command.category) then
 				for i, categoryName in ipairs(command.category) do
 					if categoryName == category then
 						result = true
-						
 						break
 					end
 				end
 			end
 		end
 	end
-	
 	return result
 end
 
-local function getProfileKeyCommands(profileName, category)
+local function getProfileKeyCommandsCopy(profileName, category)
 	local result = {}
 	local profile = getLoadedProfile_(profileName)
-	
+		
 	if profile then
-		for commandHash, command in pairs(getProfileKeyCommands_(profile)) do		
+		for commandHash, command in pairs(profile.keyCommands) do		
 			if getCommandBelongsToCategory(category, command) then
 				table.insert(result, U.copyTable(nil, command))
 			end	
@@ -421,82 +194,18 @@ local function getProfileKeyCommands(profileName, category)
 	return result
 end
 
-local function getProfileKeyCommand(profileName, commandHash)
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		local command = getProfileKeyCommands_(profile)[commandHash]
-		
-		if command then
-			return U.copyTable(nil, command)
-		end
-	end
-end
-
-local function getProfileRawKeyCommands(profileName)
+local function getProfileAxisCommandsCopy(profileName)
 	local result = {}
 	local profile = getLoadedProfile_(profileName)
 	
 	if profile then
-		result = U.copyTable(nil, getProfileKeyCommands_(profile))
-	end
-	
-	return result
-end
-
-local function getProfileAxisCommands(profileName)
-	local result = {}
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		for commandHash, command in pairs(getProfileAxisCommands_(profile)) do
+		for commandHash, command in pairs(profile.axisCommands) do
 			table.insert(result, U.copyTable(nil, command))
 		end
 	end
 	
 	return result
 end
-
-local function getProfileAxisCommand(profileName, commandHash)
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		local command = getProfileAxisCommands_(profile)[commandHash]
-		
-		if command then
-			return U.copyTable(nil, command)
-		end
-	end
-end
-
-local function getProfileRawAxisCommands(profileName)
-	local result = {}
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		result = U.copyTable(nil, getProfileAxisCommands_(profile))
-	end	
-	
-	return result
-end
-
-local default_assignments = nil
-
-local fdef, errfdef = loadfile('./Scripts/Input/DefaultAssignments.lua') 
-if  fdef then
-	setfenv(fdef, {})
-	local ok, res = pcall(fdef)
-	if ok then
-		default_assignments = res
-	else
-		log.error('Cannot load default assignments '..res)
-	end
-else
-	log.error('Cannot load default assignments '.. errfdef)
-end
-
-local wizard_assigments
-local createAxisFilter 
 
 local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_untouched)
 	--[[
@@ -514,7 +223,7 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 		local function StartsWith(String,Start)
 			return string.sub(String,1,string.len(Start))==Start
 		end
-	
+
 		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of type: "'..deviceGenericName..'", filename: "'..filename..'"') end
 		-- Only operate on files that are in this folder
 		local targetPrefixForAircrafts = "./Mods/aircraft/"
@@ -532,7 +241,7 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 			-- Transform path to user folder
 			local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
 			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: "'..newFileName..'"') end
-	
+
 			-- If the user has put a file there continue
 			if lfs.attributes(newFileName) then
 				if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: "'..newFileName..'"') end
@@ -545,7 +254,7 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 					setfenv(f, env)
 					local statusInj, resultInj
 					statusInj, resultInj = pcall(f)
-	
+
 					-- Merge resulting tables
 					if statusInj then
 						if result.keyCommands and resultInj.keyCommands then -- If both exist then join
@@ -568,7 +277,7 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 			end
 		end
 	end
-
+	
 	local f, err = loadfile(filename)
 	local result
 	local deviceGenericName
@@ -785,6 +494,7 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 		
 		status, result = pcall(f)
 		QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
+		
 		if status then
 			if nonLocalized then
 				for i, keyCommand in ipairs(result.keyCommands or {}) do
@@ -813,9 +523,7 @@ end
 
 local function getProfileUserConfigPath_(profile)
 	-- unitName может содержать недопустимые в имени файла символы (например / или * (F/A-18A))
-	local unitName = getProfileUnitName_(profile)
-	
-	unitName = string.gsub(unitName, '([%*/%?<>%|%\\%:"])', '')
+	local unitName = string.gsub(profile.unitName, '([%*/%?<>%|%\\%:"])', '')
 	
 	return string.format('%s%s/', userConfigPath_, unitName)
 end
@@ -880,9 +588,9 @@ end
 local function loadDeviceTemplateProfileDiff_(profile, deviceName)
 	local diff
 	local deviceTypeName	= InputUtils.getDeviceTypeName(deviceName)
-	local folder			= getProfileFolder_(profile) .. '/' .. deviceTypeName .. '/'
+	local folder			= profile.folder .. '/' .. deviceTypeName .. '/'
 	local attributes		= lfs.attributes(folder)
-	
+
 	if attributes and attributes.mode == 'directory' then
 		local templateName	= InputUtils.getDeviceTemplateName(deviceName)
 		local filename		= templateName .. '.diff.lua'
@@ -893,17 +601,9 @@ local function loadDeviceTemplateProfileDiff_(profile, deviceName)
 	return diff	
 end
 
-local applyDiffToDeviceProfile_
-
-
-local template_diff_as_part_of_default = false
-local use_diff_templates			   = true
-
-local createComboHash_
-
--- эта локальная функция объявлена выше
-loadProfileDefaultDeviceProfile_ = function(profile, deviceName)
-	local folder = getProfileFolder_(profile)
+--!!!TEMPLATE DIFF IS  NOT PART OF DEFAULT , USER  DIFF  WILL BE COPY  OF TEMPLATE DIFF , SO TEMPLATE DIFF CAN BE USED  ONLY FOR RESET PROCEDURE
+local function loadProfileDefaultDeviceProfile_(profile, deviceName , applyTemplateDiff)
+	local folder = profile.folder
 	local errors = {}
 	
 	local result = collectErrors_(errors, loadTemplateDeviceProfile('', folder, deviceName))
@@ -912,23 +612,21 @@ loadProfileDefaultDeviceProfile_ = function(profile, deviceName)
 		result = collectErrors_(errors, loadDefaultDeviceProfile('', folder, deviceName))
 	end
 	
-	if not result and getProfileLoadDefaultUnitProfile_(profile) then
+	if not result and profile.loadDefaultUnitProfile then
 		result = collectErrors_(errors, loadTemplateDeviceProfile(sysPath_, 'Default', deviceName))
 	end
 
-	if not result and getProfileLoadDefaultUnitProfile_(profile) then
+	if not result and profile.loadDefaultUnitProfile then
 		result = collectErrors_(errors, loadDefaultDeviceProfile(sysPath_, 'Default', deviceName))
 	end
 	
-	if result then
-		if use_diff_templates and template_diff_as_part_of_default then
-			-- диффы для устройств в папке юнита являются частью дефолтного профиля!
-			local templateDiff = loadDeviceTemplateProfileDiff_(profile, deviceName)
-				
-			applyDiffToDeviceProfile_(result, templateDiff)
-		end
-	elseif #errors > 0 then
-		printFileLog('Profile [' .. getProfileName_(profile) .. '] cannot load device [' .. deviceName .. '] default profile!', table.concat(errors, '\n'))
+	if result and applyTemplateDiff then
+		local templateDiff = loadDeviceTemplateProfileDiff_(profile, deviceName)
+		applyDiffToDeviceProfile_(result, templateDiff)
+	end
+	
+	if #errors > 0 then
+		printFileLog('Profile [' .. profile.name .. '] errors in load process [' .. deviceName .. '] default profile!', table.concat(errors, '\n'))
 	end
 
 	return result
@@ -980,77 +678,70 @@ local function getCombosKeysAreEqual_(combo1, combo2)
 end
 
 local function findCombo_(combos, comboToFind)
-	if combos then
-		for i, combo in ipairs(combos) do
-			if getCombosKeysAreEqual_(combo, comboToFind) then
-				return i
-			end
+	if not  combos then
+		return nil
+	end
+	for i, combo in ipairs(combos) do
+		if getCombosKeysAreEqual_(combo, comboToFind) then
+			return i
 		end
 	end
 end
 
 local function loadDeviceProfileDiff_(profile, deviceName)
 	local diff
-	local deviceTypeName = InputUtils.getDeviceTypeName(deviceName)
-	local folder = string.format('%s%s/', getProfileUserConfigPath_(profile), deviceTypeName)
-	local attributes = lfs.attributes(folder)
+	local deviceTypeName 	= InputUtils.getDeviceTypeName(deviceName)
+	local folder 			= string.format('%s%s/', getProfileUserConfigPath_(profile), deviceTypeName)
+	local attributes 		= lfs.attributes(folder)
 	
-	if attributes and attributes.mode == 'directory' then
-		local filename = deviceName .. '.diff.lua'
-		
-		diff = loadDeviceProfileDiffFromFile_(folder .. filename)
-		
-		-- replace Backspace to Back in user .diff file
-		-- due to renaming Back to Backspace 05.04.2018 :(
-		if diff then
-			for commandHash, info in pairs(diff.keyDiffs or {}) do
-				for i, addInfo in ipairs(info.added or {}) do
-					if addInfo.key == 'Backspace' then
-						addInfo.key = 'Back'
-					end
-				end
+	if not attributes or attributes.mode ~= 'directory' then
+		return nil
+	end
+	
+	local filename = deviceName .. '.diff.lua'
+	local diff = loadDeviceProfileDiffFromFile_(folder .. filename)
+	if not diff then 
+		return
+	end
+	-- replace Backspace to Back in user .diff file
+	-- due to renaming Back to Backspace 05.04.2018 :(
+	for commandHash, info in pairs(diff.keyDiffs or {}) do
+		for i,  addInfo in ipairs(info.added or {}) do
+			if  addInfo.key == 'Backspace' then
+				addInfo.key = 'Back'
+			end
+		end
 				
-				for i, removeInfo in ipairs(info.removed or {}) do
-					if removeInfo.key == 'Backspace' then
-						removeInfo.key = 'Back'
-					end
-				end
+		for i, removeInfo in ipairs(info.removed or {}) do
+			if  removeInfo.key == 'Backspace' then
+				removeInfo.key = 'Back'
 			end
 		end
 	end
-	
 	return diff	
 end
 
-
-local function applyRemovedCombos_(commandCombos, removed)
-	if removed then
-		for i, combo in ipairs(removed) do
-			local index = findCombo_(commandCombos, combo)
+local function removeFoundCombos(commandCombos, removed)
+	if not removed then
+		return
+	end
+	for i, combo in ipairs(removed) do
+		local index = findCombo_(commandCombos, combo)
 			
-			if index then
-				table.remove(commandCombos, index)
-			end
-		end						
+		if index then
+			table.remove(commandCombos, index)
+		end
 	end
 end
 
 local function applyAddedCombos_(commandCombos, added)
-	if added then
-		for i, combo in ipairs(added) do
-			table.insert(commandCombos, combo)
-		end
+	if not added then
+		return 
 	end
-end
-
-local function cleanupDefaultCommandCombos(commandCombos, diffCombos)
-	if diffCombos then
-		for i, diffCombo in ipairs(diffCombos) do
-			local index = findCombo_(commandCombos, diffCombo)
-			
-			if index then
-				table.remove(commandCombos, index)
-			end
+	for i, combo in ipairs(added) do
+		local index = findCombo_(commandCombos, combo) -- avoid duplicates
+		if not index then
+			table.insert(commandCombos, combo)
 		end
 	end
 end
@@ -1109,6 +800,9 @@ local function applyDiffToCommands_(commands, diff, commandHashFunc)
 				if getDefaultCommandUpdated(commandCombos, hash, diffInfos) then
 					command.updated = true
 				else
+				
+					local cleanupDefaultCommandCombos = removeFoundCombos
+
 					-- Удаляем из дефолтной раскладки все комбинации,
 					-- упомянутые в пользовательских данных.
 					-- Сделано это для того, чтобы при добавлении дефолтного профиля устройства
@@ -1122,8 +816,9 @@ local function applyDiffToCommands_(commands, diff, commandHashFunc)
 				end
 			end
 			
-			local commandDiff = diff[hash]
-			
+			local commandDiff 			= diff[hash]
+			local applyRemovedCombos_   = removeFoundCombos
+
 			if commandDiff then				
 				if not commandCombos then
 					commandCombos = {}
@@ -1166,21 +861,14 @@ end
 local function loadDeviceProfile_(profile, deviceName)
 	local errors = {}
 
-	local result = collectErrors_(errors, loadPluginDeviceProfile_(getProfileFolder_(profile), deviceName))
-	
-	if result then
-		if use_diff_templates and template_diff_as_part_of_default then
-			-- диффы для устройств в папке юнита являются частью дефолтного профиля!
-			local templateDiff = loadDeviceTemplateProfileDiff_(profile, deviceName)
-				
-			applyDiffToDeviceProfile_(result, templateDiff)
-		end
-	else
+	local result = collectErrors_(errors, loadPluginDeviceProfile_(profile.folder, deviceName))
+
+	if not result then
 		result = loadProfileDefaultDeviceProfile_(profile, deviceName)
 	end
 		
 	if not result and #errors > 0 then
-		printFileLog('Profile [' .. getProfileName_(profile) .. '] cannot load device [' .. deviceName .. '] profile!', table.concat(errors, '\n'))
+		printFileLog('Profile [' .. profile.name .. '] cannot load device [' .. deviceName .. '] profile!', table.concat(errors, '\n'))
 	end
 	
 	if not result then
@@ -1251,31 +939,6 @@ local function createProfileTable_(name, folder, unitName, default, visible, loa
 	}
 end
 
-local function createProfile(profileInfo)
-	local profile = findProfile_(profileInfo.name)
-	
-	if profile then
-		-- некоторые профили используются разными юнитами
-		-- например Spitfire
-        -- InputProfiles = {
-            -- ["SpitfireLFMkIX"]			= current_mod_path .. '/Input/SpitfireLFMkIX',
-            -- ["SpitfireLFMkIXCW"]			= current_mod_path .. '/Input/SpitfireLFMkIX',
-         -- },
-		if getProfileUnitName_(profile) ~= profileInfo.unitName then
-			aliases_[profileInfo.unitName] = profile
-		end
-	else
-		profile = createProfileTable_(profileInfo.name,
-									  profileInfo.folder,
-									  profileInfo.unitName,
-									  profileInfo.default,
-									  profileInfo.visible,
-									  profileInfo.loadDefaultUnitProfile)
-									  
-		table.insert(profiles_, profile)
-	end
-end
-
 local function createProfileCategories(profile)
 	local profileCategories = {}
 	local categories = {}
@@ -1287,7 +950,7 @@ local function createProfileCategories(profile)
 		end	
 	end
 
-	for commandHash, command in pairs(getProfileKeyCommands_(profile)) do
+	for commandHash, command in pairs(profile.keyCommands) do
 		local category = command.category
 
 		if category then
@@ -1299,7 +962,7 @@ local function createProfileCategories(profile)
 				addCategory(category)
 			end
 		else
-			printLog('Command ' .. command.name .. ' has no category in profile ' .. getProfileName_(profile))
+			printLog('Command ' .. command.name .. ' has no category in profile ' .. profile.name)
 		end
 	end
 	
@@ -1377,7 +1040,7 @@ local function createModifierHash_(name, modifiers)
 	end	
 end
 
-createComboHash_ = function(deviceName, combo, modifiers)
+local function createComboHash_(deviceName, combo, modifiers)
 	local hash = createKeyHash_(deviceName, combo.key)
 	
 	if combo.reformers then
@@ -1406,8 +1069,8 @@ local function createUiLayerComboInfos_()
 	
 	-- если симулятор запускается с миссией в командной строке, то слой для UI не заёгружается
 	if profile then
-		local commands		= getProfileKeyCommands_(profile)
-		local modifiers		= getProfileModifiers_(profile)
+		local commands		= profile.keyCommands
+		local modifiers		= profile.modifiers
 		
 		uiLayerComboHashes_ = {}
 		uiLayerKeyHashes_	= {}
@@ -1518,10 +1181,11 @@ local function makeComboWarningString_(warnings)
 end
 
 local function validateProfileCommandCombos(profileName, command)
-	local result = not command.updated
-	
+	local result  = not command.updated
 	if result then
-		local modifiers = getProfileModifiers_(findProfile_(profileName))
+		local profile   = findProfile_(profileName)
+	
+		local modifiers = profile.modifiers
 		
 		for deviceName, combos in pairs(command.combos) do
 			for i, combo in ipairs(combos) do
@@ -1554,25 +1218,25 @@ end
 local function findKeyCommand_(profileName, commandHash)
 	local profile = getLoadedProfile_(profileName)
 	
-	return findCommandByHash_(getProfileKeyCommands_(profile), commandHash)
+	return findCommandByHash_(profile.keyCommands, commandHash)
 end
 
 local function findDefaultKeyCommand_(profileName, commandHash)
 	local profile = getLoadedProfile_(profileName)
 	
-	return findCommandByHash_(getProfileDefaultKeyCommands_(profile), commandHash)
+	return findCommandByHash_(profile.defaultKeyCommands, commandHash)
 end
 
 local function findAxisCommand_(profileName, commandHash)
 	local profile = getLoadedProfile_(profileName)
 	
-	return findCommandByHash_(getProfileAxisCommands_(profile), commandHash)
+	return findCommandByHash_(profile.axisCommands, commandHash)
 end
 
 local function findDefaultAxisCommand_(profileName, commandHash)
 	local profile = getLoadedProfile_(profileName)
 	
-	return findCommandByHash_(getProfileDefaultAxisCommands_(profile), commandHash)
+	return findCommandByHash_(profile.defaultAxisCommands, commandHash)
 end
 
 local function getCommandModifiedCombos_(command, deviceName)
@@ -1633,26 +1297,6 @@ local function removeComboFromCommands_(profileName, deviceName, commands, combo
 	end
 end
 
-local function addComboToKeyCommand(profileName, commandHash, deviceName, combo)
-	local command = findKeyCommand_(profileName, commandHash)
-	
-	if command then
-		local profile = getLoadedProfile_(profileName)
-		local commands = getProfileKeyCommands_(profile)
-		
-		removeComboFromCommands_(profileName, deviceName, commands, combo)
-		addComboToCommand_(profileName, deviceName, command, combo)
-		setProfileModified_(profile, true)
-	end	
-end
-
-local function removeKeyCommandCombos(profileName, commandHash, deviceName)
-	local command = findKeyCommand_(profileName, commandHash)
-	
-	removeCombosFromCommand_(profileName, command, deviceName)
-	setProfileModified_(getLoadedProfile_(profileName), true)
-end
-
 local function setDefaultCommandCombos_(profileName, deviceName, defaultCommand, command, commands)
 	removeCombosFromCommand_(profileName, command, deviceName)
 
@@ -1672,96 +1316,6 @@ local function setDefaultCommandsCategoryCombos_(profileName, commands, deviceNa
 			end
 		end
 	end
-end
-
-local function getDefaultKeyCommands(profileName)
-	local profile = getLoadedProfile_(profileName)
-
-	return U.copyTable(nil, getProfileDefaultKeyCommands_(profile))
-end
-
-local function getDefaultKeyCommand(profileName, commandHash)
-	local command = findDefaultKeyCommand_(profileName, commandHash)
-	
-	if command then
-		return U.copyTable(nil, command)
-	end	
-end
-
-local function setDefaultKeyCommandCombos(profileName, commandHash, deviceName)
-	local defaultKeyCommand = findDefaultKeyCommand_(profileName, commandHash)
-	
-	if defaultKeyCommand then
-		local keyCommand = findKeyCommand_(profileName, commandHash)
-		
-		if keyCommand then
-			local profile = getLoadedProfile_(profileName)
-			local keyCommands = getProfileKeyCommands_(profile)	
-			setDefaultCommandCombos_(profileName, deviceName, defaultKeyCommand, keyCommand, keyCommands)
-			setProfileModified_(profile, true)
-		end
-	end
-end
-
-local function addComboToAxisCommand(profileName, commandHash, deviceName, combo)
-	local command = findAxisCommand_(profileName, commandHash)
-	
-	if command then
-		local profile = getLoadedProfile_(profileName)
-		local commands = getProfileAxisCommands_(profile)
-		
-		removeComboFromCommands_(profileName, deviceName, commands, combo)
-		addComboToCommand_(profileName, deviceName, command, combo)
-		setProfileModified_(profile, true)
-	end
-end
-
-local function removeAxisCommandCombos(profileName, commandHash, deviceName)
-	local command = findAxisCommand_(profileName, commandHash)
-	
-	removeCombosFromCommand_(profileName, command, deviceName)
-	setProfileModified_(getLoadedProfile_(profileName), true)
-end
-
-local function getDefaultAxisCommands(profileName)
-	local profile = getLoadedProfile_(profileName)
-	
-	return U.copyTable(nil, getProfileDefaultAxisCommands_(profile))
-end
-
-local function getDefaultAxisCommand(profileName, commandHash)
-	local command = findDefaultAxisCommand_(profileName, commandHash)
-	
-	if command then
-		return U.copyTable(nil, command)
-	end
-end
-
-local function setDefaultAxisCommandCombos(profileName, commandHash, deviceName)
-	local defaultAxisCommand = findDefaultAxisCommand_(profileName, commandHash)
-	
-	if defaultAxisCommand then
-		local axisCommand = findAxisCommand_(profileName, commandHash)
-		
-		if axisCommand then
-			local profile = getLoadedProfile_(profileName)
-			local axisCommands = getProfileAxisCommands_(profile)	
-			
-			setDefaultCommandCombos_(profileName, deviceName, defaultAxisCommand, axisCommand, axisCommands)
-			setProfileModified_(profile, true)
-		end
-	end
-end
-
-local setAxisComboFilters
-local function setAxisCommandComboFilter(profileName, commandHash, deviceName, filters)
-	local command = findAxisCommand_(profileName, commandHash)
-	local combos = command.combos
-	
-	if combos then
-		setAxisComboFilters(combos[deviceName], filters)
-		setProfileModified_(getLoadedProfile_(profileName), true)
-	end	
 end
 
 local function addProfileKeyCommand(profileName, deviceName, keyCommand, commandsHashTable, combosHashTable)
@@ -1792,8 +1346,7 @@ local function addProfileKeyCommand(profileName, deviceName, keyCommand, command
 	command.valid = validateProfileCommandCombos(profileName, command)
 end
 
--- функция addProfileKeyCommands объявлена выше
-addProfileKeyCommands = function(profileName, deviceName, deviceProfile, commandsHashTable)
+local function addProfileKeyCommands(profileName, deviceName, deviceProfile, commandsHashTable)
 	-- deviceProfile это таблица, загруженная из файла
 	local keyCommands = deviceProfile.keyCommands
 	
@@ -1808,35 +1361,34 @@ end
 
 local function addProfileAxisCommand(profileName, deviceName, axisCommand, commandsHashTable, combosHashTable)
 	local commandHash = InputUtils.getAxisCommandHash(axisCommand)
-	
-	if commandHash then
-		local command = commandsHashTable[commandHash]
+	if not commandHash then
+		return 
+	end
+	local command = commandsHashTable[commandHash]
 
-		if command then
-			if command.name ~= axisCommand.name then
-				printLog('Profile[' .. profileName .. '] axis command[' .. 
-									axisCommand.name .. '] for device[' .. 
-									deviceName.. '] has different name from command[' .. command.name .. '] for device[' .. 
-									getCommandDeviceNamesString(command) .. ']')
-			end
-
-			command.combos[deviceName] = axisCommand.combos or {}
-		else
-			command = {combos = {}}
-
-			copyDeviceCommandToProfileCommand(deviceName, axisCommand, command)
-
-			command.name = axisCommand.name
-			command.hash = commandHash
-			commandsHashTable[commandHash] = command
+	if command then
+		if command.name ~= axisCommand.name then
+			printLog('Profile[' .. profileName .. '] axis command[' .. 
+								axisCommand.name .. '] for device[' .. 
+								deviceName.. '] has different name from command[' .. command.name .. '] for device[' .. 
+								getCommandDeviceNamesString(command) .. ']')
 		end
 
-		command.valid = validateProfileCommandCombos(profileName, command)
+		command.combos[deviceName] = axisCommand.combos or {}
+	else
+		command = {combos = {}}
+
+		copyDeviceCommandToProfileCommand(deviceName, axisCommand, command)
+
+		command.name = axisCommand.name
+		command.hash = commandHash
+		commandsHashTable[commandHash] = command
 	end
+
+	command.valid = validateProfileCommandCombos(profileName, command)
 end
 
--- функция addProfileAxisCommands объявлена выше
-addProfileAxisCommands = function(profileName, deviceName, deviceProfile, commandsHashTable)
+local function addProfileAxisCommands(profileName, deviceName, deviceProfile, commandsHashTable)
 	if deviceProfile.axisCommands then
 		local combosHashTable = {}
 
@@ -1861,13 +1413,6 @@ local function getProfileForceFeedbackSettings(profileName, deviceName)
 	end	
 end
 
-function setProfileForceFeedbackSettings(profileName, deviceName, settings)
-	local profile = getLoadedProfile_(profileName)
-	
-	profile.forceFeedback[deviceName] = U.copyTable(nil, settings)
-	setProfileModified_(profile, true)
-end
-
 local function validateCommands_(profileName, commands)
 	if commands then
 		for commandHash, command in pairs(commands) do
@@ -1876,41 +1421,7 @@ local function validateCommands_(profileName, commands)
 	end
 end
 
-local function setProfileModifiers(profileName, modifiers)		
-	local profile = getLoadedProfile_(profileName)
-	
-	profile.modifiers = U.copyTable(nil, modifiers)
-	
-	for i, profile in ipairs(profiles_) do
-		local profileName = getProfileName_(profile)
-
-		validateCommands_(profileName, getProfileKeyCommands_(profile))
-		validateCommands_(profileName, getProfileAxisCommands_(profile))		
-	end
-	
-	setProfileModified_(profile, true)
-end
-
-createAxisFilter = function(filter)
-	filter = filter or {}
-
-	local result = {}
-
-	result.deadzone				= filter.deadzone			or 0
-	result.saturationX			= filter.saturationX		or 1
-	result.saturationY			= filter.saturationY		or 1
-	result.hardwareDetentMax	= filter.hardwareDetentMax	or 0
-	result.hardwareDetentAB		= filter.hardwareDetentAB	or 0
-	result.hardwareDetent		= not (not filter.hardwareDetent)
-	result.slider				= not (not filter.slider		)
-	result.invert				= not (not filter.invert		)	
-	result.curvature			= U.copyTable(nil, filter.curvature or {0})
-
-	return result
-end
-
--- функция setAxisComboFilters объявлена выше
-setAxisComboFilters = function(combos, filters)
+local function setAxisComboFilters(combos, filters)
 	if combos then
 		for i, combo in ipairs(combos) do
 			local axis = combo.key
@@ -1926,51 +1437,9 @@ setAxisComboFilters = function(combos, filters)
 	end
 end
 
--- эта локальная функция объявлена выше
-applyDiffToDeviceProfile_ = function(deviceProfile, diff)
-	if diff then
-		applyDiffToCommands_(deviceProfile.keyCommands, diff.keyDiffs, InputUtils.getKeyCommandHash)
-		applyDiffToCommands_(deviceProfile.axisCommands, diff.axisDiffs, InputUtils.getAxisCommandHash)
-		applyDiffToForceFeedback_(deviceProfile, diff.ffDiffs)
-	end
-end
-
 local function setProfileDeviceProfile_(profile, deviceName, deviceProfile)
-	validateDeviceProfile_(getProfileName_(profile), deviceProfile, deviceName)
+	validateDeviceProfile_(profile.name, deviceProfile, deviceName)
 	profile.deviceProfiles[deviceName] = deviceProfile
-end
-
-local function getProfileDeviceProfiles_(profile)
-	local deviceProfiles = profile.deviceProfiles
-	
-	if not deviceProfiles then
-		deviceProfiles = {}
-		profile.deviceProfiles = deviceProfiles
-		
-		local devices = InputUtils.getDevices()
-
-		for i, deviceName in ipairs(devices) do
-			local deviceProfile = loadDeviceProfile_(profile, deviceName)
-
-			if deviceProfile then
-				local diff 		   = loadDeviceProfileDiff_(profile, deviceName)
-				if use_diff_templates then 
-					local templateDiff = loadDeviceTemplateProfileDiff_(profile, deviceName)
-					if template_diff_as_part_of_default then
-						applyDiffToDeviceProfile_(deviceProfile, templateDiff)
-					elseif not diff then
-						diff = templateDiff
-					end
-				end
-				-------------------------------------------------------	
-				applyDiffToDeviceProfile_(deviceProfile, diff)
-				
-				setProfileDeviceProfile_(profile, deviceName, deviceProfile)
-			end
-		end
-	end
-	
-	return deviceProfiles
 end
 
 local function loadModifiersFromFolder_(folder)
@@ -2010,7 +1479,7 @@ end
 local function loadProfileDefaultModifiers_(profile, errors)	
 	errors = errors or {}
 	
-	local folder = getProfileFolder_(profile)
+	local folder 	= profile.folder
 	local modifiers = collectErrors_(errors, loadModifiersFromFolder_(folder))
 	
 	if not modifiers then
@@ -2030,7 +1499,7 @@ local function loadProfileModifiers_(profile)
 	end
 	
 	if not modifiers and #errors > 0 then
-		printLog('Profile [' .. getProfileName_(profile) .. '] cannot load modifiers!', table.concat(errors, '\n'))
+		printLog('Profile [' .. profile.name .. '] cannot load modifiers!', table.concat(errors, '\n'))
 	end
 	
 	return modifiers, folder
@@ -2056,7 +1525,6 @@ end
 local function createModifier(key, deviceName, switch)
 	local event 	= InputUtils.getInputEvent(key)
 	local deviceId	= Input.getDeviceId(deviceName)
-	
 	return {key = key, event = event, deviceId = deviceId, deviceName = deviceName, switch = switch}
 end
 
@@ -2085,45 +1553,6 @@ local function createProfileModifiers_(profile)
 	profile.modifiers = profileModifiers
 end
 
--- функция loadProfile объявлена выше
-loadProfile = function(profile)
-	local profileName = getProfileName_(profile)
-	
-	local deviceProfiles = getProfileDeviceProfiles_(profile)
-	local keyCommandsHashTable = {}
-	local axisCommandsHashTable = {}
-	
-	createProfileModifiers_(profile)
-	
-	for deviceName, deviceProfile in pairs(deviceProfiles) do
-		addProfileKeyCommands(profileName, deviceName, deviceProfile, keyCommandsHashTable)
-		addProfileAxisCommands(profileName, deviceName, deviceProfile, axisCommandsHashTable)
-		addProfileForceFeedbackSettings(profile, deviceName, deviceProfile)
-	end
-	
-	profile.keyCommands = keyCommandsHashTable
-	profile.axisCommands = axisCommandsHashTable
-	
-	-- сразу сохраняем дефлтные команды, 
-	-- поскольку при загрузке новых профилей может поменяться значение в таблице devices["KNEEBOARD"] 
-	-- и хэши загруженных команд и дефолтных начнут отличаться 
-	-- bug 0044809
-	
-	loadProfileDefaultCommands_(profile)
-
-	createProfileCategories(profile)
-	
-	setProfileLoaded_(profile)
-end
-
-local function getDefaultProfileName()
-	for i, profile in ipairs(profiles_) do
-		if getProfileDefault_(profile) then
-			return getProfileName_(profile)
-		end	
-	end
-end
-
 local function deleteDeviceCombos_(commands, deviceName)
 	for commandHash, command in pairs(commands) do
 		local combos = command.combos
@@ -2144,30 +1573,6 @@ local function getDeviceProfile(profileName, deviceName)
 	return deviceProfile
 end
 
-function loadDeviceProfile(profileName, deviceName, filename)
-	local deviceProfile = getDeviceProfile(profileName, deviceName)
-	
-	if deviceProfile then
-		local diff = loadDeviceProfileDiffFromFile_(filename)
-		
-		if diff then
-			local profile = getLoadedProfile_(profileName)
-				
-			applyDiffToDeviceProfile_(deviceProfile, diff)
-			setProfileDeviceProfile_(profile, deviceName, deviceProfile)
-			
-			deleteDeviceCombos_(getProfileKeyCommands_(profile), deviceName)
-			deleteDeviceCombos_(getProfileAxisCommands_(profile), deviceName)
-			
-			addProfileKeyCommands(profileName, deviceName, deviceProfile, profile.keyCommands)
-			addProfileAxisCommands(profileName, deviceName, deviceProfile, profile.axisCommands)
-			addProfileForceFeedbackSettings(profile, deviceName, deviceProfile)
-
-			setProfileModified_(profile, true)
-		end
-	end
-end
-
 local function getForceFeedbackSettingsDiff_(forceFeedbackSettings, defaultForceFeedbackSettings)
 	local diff = {}
 	
@@ -2184,14 +1589,14 @@ end
 
 local function getForceFeedbackDiff_(profile, deviceName)
 	local forceFeedback = profile.forceFeedback[deviceName]
-
-	if forceFeedback then
-		local forceFeedbackSettings = createForceFeedbackSettings(forceFeedback)
-		local defaultDeviceProfile = loadProfileDefaultDeviceProfile_(profile, deviceName)
-		local defaultForceFeedbackSettings = createForceFeedbackSettings(defaultDeviceProfile.forceFeedback)
-		
-		return getForceFeedbackSettingsDiff_(forceFeedbackSettings, defaultForceFeedbackSettings)	
+	if not forceFeedback then 
+		return 
 	end
+	local forceFeedbackSettings 		= createForceFeedbackSettings(forceFeedback)
+	local defaultDeviceProfile 			= loadProfileDefaultDeviceProfile_(profile, deviceName)
+	local defaultForceFeedbackSettings 	= createForceFeedbackSettings(defaultDeviceProfile.forceFeedback)
+		
+	return getForceFeedbackSettingsDiff_(forceFeedbackSettings, defaultForceFeedbackSettings)	
 end
 
 local function compareFilters_(filter1, filter2)
@@ -2261,35 +1666,34 @@ local function cleanupCombo_(combo, checkDefaultFilter)
 end
 
 local function getCommandAddedCombos_(command, defaultCommand, deviceName)
-	local result	
 	local combos = command.combos[deviceName]
+	if not combos then 
+		return
+	end
 	local defaultCombos = defaultCommand.combos[deviceName]
-	
-	if combos then 
-		for i, combo in ipairs(combos) do
-			if not findCombo_(defaultCombos, combo) then
-				result = result or {}
-				table.insert(result, cleanupCombo_(combo, true))
-			end
+	local result	
+	for i, combo in ipairs(combos) do
+		if not findCombo_(defaultCombos, combo) then
+			result = result or {}
+			table.insert(result, cleanupCombo_(combo, true))
 		end
 	end
 	return result
 end
 
 local function getCommandRemovedCombos_(command, defaultCommand, deviceName)
+	local  defaultCombos = defaultCommand.combos[deviceName]
+	if not defaultCombos then
+		return nil
+	end
+	local combos 		= command.combos[deviceName]
 	local result
-	local combos = command.combos[deviceName]
-	local defaultCombos = defaultCommand.combos[deviceName]
-	
-	if defaultCombos then
-		for i, combo in ipairs(defaultCombos) do
-			if not findCombo_(combos, combo) then
-				result = result or {}
-				table.insert(result, cleanupCombo_(combo))
-			end
+	for i, combo in ipairs(defaultCombos) do
+		if not findCombo_(combos, combo) then
+			result = result or {}
+			table.insert(result, cleanupCombo_(combo))
 		end
 	end
-	
 	return result
 end
 
@@ -2329,95 +1733,60 @@ local function getCommandDiffCommon_(command, defaultCommand, deviceName)
 	return nil
 end
 
-local function getAxisCommandDiff_(command, defaultCommand, deviceName)
-
-	local res 					= getCommandDiffCommon_(command, defaultCommand, deviceName)
-	local changedFilterCombos 	= getCommandChangedFilterCombos_(command, defaultCommand, deviceName)
-	if changedFilterCombos then
-		if not res then 
-			res = {
-				name    = command.name, 
-			}
-		end
-		res.changed = changedFilterCombos
-	end
-	return res
-end
-
-local getKeyCommandDiff_ = getCommandDiffCommon_
-
-local function getKeyDiffs_(profile, deviceName)
-	local diffs = {}
-	local commands = getProfileKeyCommands_(profile)
-	local defaultCommands = getProfileDefaultKeyCommands_(profile)
-	
-	for commandHash, command in pairs(commands) do	
-		local defaultCommand = defaultCommands[commandHash]
-		local combos = command.combos[deviceName]
-		
-		if defaultCommand then
-			local commandDiff = getKeyCommandDiff_(command, defaultCommand, deviceName)
-			
-			if commandDiff then
-				diffs[commandHash] = commandDiff
-			end
-		else
-			-- возможно команда сохранена в пользовательских настройках,
-			-- но после обновления она исчезла из дефолтных настроек
-			print("Cannot find default key command for hash", commandHash, command.name, profile.name, deviceName)
-		end
-	end
-	
-	if next(diffs) then
-		return diffs
-	end
-end
-
-local function getAxisDiffs_(profile, deviceName)
-	local diffs = {}
-	
-	local commands = getProfileAxisCommands_(profile)
-	local defaultCommands = getProfileDefaultAxisCommands_(profile)
-	
-	for commandHash, command in pairs(commands) do
-		local defaultCommand = defaultCommands[commandHash]
-		
-		if defaultCommand then
-			local commandDiff = getAxisCommandDiff_(command, defaultCommand, deviceName)
-			
-			if commandDiff then
-				diffs[commandHash] = commandDiff
-			end
-		else
-			-- возможно команда сохранена в пользовательских настройках,
-			-- но после обновления она исчезла из дефолтных настроек	
-			print("Cannot find default axis command for hash", commandHash, command.name, profile.name, deviceName)
-		end
-	end
-
-	if next(diffs) then
-		return diffs
-	end
-end
-
 local function storeDeviceProfileDiffIntoFile_(filename, diff)
 	local file, err = io.open(filename, 'w')
-	if file then
-		local s = Serializer.new(file)
-		s:serialize_sorted('local diff', diff)
-		file:write('return diff')
-		file:close()
-	else
+	if not file then
 		log.error(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
+		return
 	end
+	
+	local s = Serializer.new(file)
+	s:serialize_sorted('local diff', diff)
+	file:write('return diff')
+	file:close()
 end
 
 local function saveDeviceProfile(profileName, deviceName, filename)
-	local profile = getLoadedProfile_(profileName)
+	local profile 		= getLoadedProfile_(profileName)
+	local calcDiff		= function(commands,base,calculator)
+		local diffs = {}
+		for commandHash, command in pairs(commands) do
+			local base_command = base[commandHash]
+			if base_command then
+				local commandDiff = calculator(command, base_command, deviceName)
+				if commandDiff then
+					diffs[commandHash] = commandDiff
+				end
+			else
+				-- возможно команда сохранена в пользовательских настройках,
+				-- но после обновления она исчезла из дефолтных настроек	
+				print("Cannot find base command for hash", commandHash, command.name, profile.name, deviceName)
+			end
+		end
+	
+		if next(diffs) then
+			return diffs
+		end
+	end
+	
+	local getCommandDiffAxis = function (command, defaultCommand, deviceName)
+		local res 					= getCommandDiffCommon_			(command, defaultCommand, deviceName)
+		local changedFilterCombos 	= getCommandChangedFilterCombos_(command, defaultCommand, deviceName)
+		if changedFilterCombos then
+			if not res then 
+				res = {
+					name    = command.name, 
+				}
+			end
+			res.changed = changedFilterCombos
+		end
+		return res
+	end
+	
 	local diff = {
-		ffDiffs = getForceFeedbackDiff_(profile, deviceName),
-		keyDiffs = getKeyDiffs_(profile, deviceName),
-		axisDiffs = getAxisDiffs_(profile, deviceName),
+		ffDiffs 	= getForceFeedbackDiff_(profile, deviceName),
+		keyDiffs 	= calcDiff(profile.keyCommands ,profile.baseKeyCommands ,getCommandDiffCommon_),
+		axisDiffs	= calcDiff(profile.axisCommands,profile.baseAxisCommands,getCommandDiffAxis),
 	}
 	
 	if next(diff) then
@@ -2436,12 +1805,10 @@ local function compareModifiers_(modifier1, modifier2)
 		else
 			return false
 		end			
+	elseif modifier2 then
+		return false
 	else
-		if modifier2 then
-			return false
-		else
-			return true
-		end
+		return true
 	end
 end
 	
@@ -2500,9 +1867,9 @@ end
 
 local function saveProfileModifiers_(profileName, folder)
 	local filename = folder .. 'modifiers.lua'
-	local profile = findProfile_(profileName)
-	local modifiers = getProfileModifiers_(profile)
-	local defaultModifiers = getProfileDefaultModifiers_(profile)
+	local profile 			= findProfile_(profileName)
+	local modifiers 		= profile.modifiers
+	local defaultModifiers 	= getProfileDefaultModifiers_(profile)
 	
 	if getModifiersAreEqual_(modifiers, defaultModifiers) then
 		os.remove(filename)
@@ -2538,67 +1905,6 @@ local function saveDisabledDevices()
 		file:close()
 	else
 		log.error(string.format('Cannot save disabled devices into file[%s]! Error %s', filename, err))
-	end
-end
-
-local function saveChanges()
-	local devices = InputUtils.getDevices()
-
-	for i, profile in ipairs(profiles_) do
-		if getProfileLoaded_(profile) and getProfileModified_(profile) then
-			local profileName = getProfileName_(profile)
-			local profileUserConfigPath = getProfileUserConfigPath_(profile)
-			
-			lfs.mkdir(profileUserConfigPath)
-			
-			saveProfileModifiers_(profileName, profileUserConfigPath)
-	
-			for j, deviceName in ipairs(devices) do
-				local deviceTypeName = InputUtils.getDeviceTypeName(deviceName)
-				local folder = string.format('%s%s', profileUserConfigPath, deviceTypeName)
-				local filename = string.format('%s/%s.diff.lua', folder, deviceName)
-				
-				lfs.mkdir(folder)
-				saveDeviceProfile(profileName, deviceName, filename)
-			end
-			
-			setProfileModified_(profile, false)
-		end	
-	end
-	
-	saveDisabledDevices()
-	
-	if controller_ then
-		controller_.inputDataSaved()
-	end
-end
-
-local function undoChanges()
-	for i, profile in ipairs(profiles_) do
-		if getProfileLoaded_(profile) and getProfileModified_(profile) then
-			profiles_[i] = createProfileTable_(	getProfileName_(profile),
-												getProfileFolder_(profile),
-												getProfileUnitName_(profile),
-												getProfileDefault_(profile),
-												getProfileVisible_(profile),
-												getProfileLoadDefaultUnitProfile_(profile))
-		end
-	end	
-	
-	if controller_ then
-		controller_.inputDataRestored()
-	end
-end
-
-local function setController(controller)
-	controller_ = controller
-end
-
-local function getProfileFolder(profileName)
-	local profile = findProfile_(profileName)
-	
-	if profile then
-		return getProfileFolder_(profile)
 	end
 end
 
@@ -2748,7 +2054,7 @@ local function writeForceFeedbackToFile(file, profileName, deviceName)
 end
 
 local function writeKeyCommandsToFile(file, profileName, deviceName)	
-	local keyCommands			= getProfileKeyCommands(profileName)
+	local keyCommands			= getProfileKeyCommandsCopy(profileName)
 	local keyActionHashInfos	= InputUtils.getKeyCommandActionHashInfos()
 	local commandsInfo			= getCommandsInfo(keyCommands, keyActionHashInfos, deviceName)
 	
@@ -2762,7 +2068,7 @@ local function writeKeyCommandsToFile(file, profileName, deviceName)
 end
 
 local function writeAxisCommandsToFile(file, profileName, deviceName)
-	local axisCommands = getProfileAxisCommands(profileName)
+	local axisCommands 			= getProfileAxisCommandsCopy(profileName)
 	local axisActionHashInfos	= InputUtils.getAxisCommandActionHashInfos()
 	local commandsInfo			= getCommandsInfo(axisCommands, axisActionHashInfos, deviceName)
 	
@@ -2775,63 +2081,97 @@ local function writeAxisCommandsToFile(file, profileName, deviceName)
 	file:write('},\n')	
 end
 
-local function saveFullDeviceProfile(profileName, deviceName, filename)
-	local file, err = io.open(filename, 'w')
-	
-	if file then
-		file:write('return {\n')
+applyDiffToDeviceProfile_	= function(profile, diff)
+	if not diff then
+		return 
+	end
+	applyDiffToCommands_		(profile.keyCommands , diff.keyDiffs , InputUtils.getKeyCommandHash)
+	applyDiffToCommands_		(profile.axisCommands, diff.axisDiffs, InputUtils.getAxisCommandHash)
+	applyDiffToForceFeedback_	(profile, diff.ffDiffs)
+end
+
+loadProfile					= function(profile)
+	local profileName 	 = profile.name
+	local devices 		 = InputUtils.getDevices()
 		
-		writeForceFeedbackToFile(file, profileName, deviceName)
-		writeKeyCommandsToFile	(file, profileName, deviceName)	
-		writeAxisCommandsToFile	(file, profileName, deviceName)
-	
-		file:write('}')
-		file:close()
-	else
-		log.error(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
-	end
-end
-
-local function getProfileChanged(profileName)
-	local profile = findProfile_(profileName)
-	
-	if profile and getProfileLoaded_(profile) then
-		return getProfileModified_(profile)
+	if not profile.deviceProfiles then
+		profile.deviceProfiles = {}
+		for i, deviceName in ipairs(devices) do
+			local deviceProfile = loadDeviceProfile_(profile, deviceName)
+			if deviceProfile then
+				--!!! NOTE  USERS DIFF IS COMPLETELY REPLACE TEMPLATE DIFF !!!
+				local diff = loadDeviceProfileDiff_(profile, deviceName) or loadDeviceTemplateProfileDiff_(profile, deviceName)
+				applyDiffToDeviceProfile_(deviceProfile, diff)
+				setProfileDeviceProfile_(profile, deviceName, deviceProfile)
+			end
+		end
 	end
 	
-	return false
+	local keyCommandsHashTable  = {}
+	local axisCommandsHashTable = {}
+	
+	createProfileModifiers_(profile)
+	
+	for deviceName, deviceProfile in pairs(profile.deviceProfiles) do
+		addProfileKeyCommands(profileName, deviceName, deviceProfile, keyCommandsHashTable)
+		addProfileAxisCommands(profileName, deviceName, deviceProfile, axisCommandsHashTable)
+		addProfileForceFeedbackSettings(profile, deviceName, deviceProfile)
+	end
+	
+	profile.keyCommands  = keyCommandsHashTable
+	profile.axisCommands = axisCommandsHashTable
+	
+	-- сразу сохраняем дефлтные команды, 
+	-- поскольку при загрузке новых профилей может поменяться значение в таблице devices["KNEEBOARD"] 
+	-- и хэши загруженных команд и дефолтных начнут отличаться 
+	-- bug 0044809
+
+	-----------------------------------------------------------------------------------------
+	local loadDefaults = function (with_template_diff)
+		local defaultDeviceProfiles = {}
+		for i, deviceName in ipairs(devices) do
+			defaultDeviceProfiles[deviceName] = loadProfileDefaultDeviceProfile_(profile, deviceName,with_template_diff)
+		end		
+
+		local defaultKeyCommandsHashTable 	= {}
+		local defaultAxisCommandsHashTable  = {}
+
+		for deviceName, deviceProfile in pairs(defaultDeviceProfiles) do
+			validateDeviceProfile_(profileName, deviceProfile, deviceName)
+			addProfileKeyCommands(profileName,  deviceName, deviceProfile, defaultKeyCommandsHashTable)
+			addProfileAxisCommands(profileName, deviceName, deviceProfile, defaultAxisCommandsHashTable)
+		end
+		
+		return defaultKeyCommandsHashTable,defaultAxisCommandsHashTable
+	end
+	
+	local dk,da = loadDefaults(true)
+
+	profile.defaultKeyCommands  = dk
+	profile.defaultAxisCommands = da
+
+	--making BASE for  DIFFS caclculation 
+	local bk,ba = loadDefaults(false)
+
+	profile.baseKeyCommands  	= bk
+	profile.baseAxisCommands 	= ba
+	
+	-----------------------------------------------------------------------------------------
+	createProfileCategories(profile)
+	profile.loaded = true
 end
 
-local function unloadProfiles()
-	wizard_assigments = nil
-	local newProfiles = {}
-	
+unloadProfile				= function(profileName)
 	for i, profile in ipairs(profiles_) do
-		local newProfile = createProfileTable_(	getProfileName_(profile),
-												getProfileFolder_(profile),
-												getProfileUnitName_(profile),
-												getProfileDefault_(profile),
-												getProfileVisible_(profile),
-												getProfileLoadDefaultUnitProfile_(profile))
-										  
-		table.insert(newProfiles, newProfile)
-	end
-	
-	profiles_ = newProfiles
-end
-
--- объявлена выше
-function unloadProfile(profileName)
-	for i, profile in ipairs(profiles_) do
-		if getProfileName_(profile) == profileName then
+		if profile.name == profileName then
 			table.remove(profiles_, i)
 			
-			local newProfile = createProfileTable_(	getProfileName_						(profile),
-													getProfileFolder_					(profile),
-													getProfileUnitName_					(profile),
-													getProfileDefault_					(profile),
-													getProfileVisible_					(profile),
-													getProfileLoadDefaultUnitProfile_	(profile))
+			local newProfile = createProfileTable_(	profile.name,
+													profile.folder,
+													profile.unitName,
+													profile.default,
+													profile.visible,
+													profile.loadDefaultUnitProfile)
 
 			table.insert(profiles_, newProfile)
 			
@@ -2840,108 +2180,500 @@ function unloadProfile(profileName)
 	end
 end
 
-local function getKeyIsInUseInUiLayer(deviceName, key)
-	return uiLayerKeyHashes_[createKeyHash_(deviceName, key)]
+createAxisFilter			= function(filter)
+	filter = filter or {}
+
+	local result = {}
+
+	result.deadzone				= filter.deadzone			or 0
+	result.saturationX			= filter.saturationX		or 1
+	result.saturationY			= filter.saturationY		or 1
+	result.hardwareDetentMax	= filter.hardwareDetentMax	or 0
+	result.hardwareDetentAB		= filter.hardwareDetentAB	or 0
+	result.hardwareDetent		= not (not filter.hardwareDetent)
+	result.slider				= not (not filter.slider		)
+	result.invert				= not (not filter.invert		)	
+	result.curvature			= U.copyTable(nil, filter.curvature or {0})
+
+	return result
 end
 
-local function clearProfile(profileName, deviceNames)
-	local profile = getLoadedProfile_(profileName)
-	
-	if profile then
-		for i, deviceName in ipairs(deviceNames) do
-			for commandHash, command in pairs(getProfileAxisCommands_(profile)) do
-				removeCombosFromCommand_(profileName, command, deviceName)
-			end
-			
-			for commandHash, command in pairs(getProfileKeyCommands_(profile)) do
-				removeCombosFromCommand_(profileName, command, deviceName)
-			end
-		end
-		
-		setProfileModified_(profile, true)
-	end
-end
-
-local function setDeviceDisabled(deviceName, disabled)
-	if disabled then
-		disabledDevices_[deviceName] = true
-		Input.setDeviceDisabled(deviceName, true)		
+------------------------------------------------------------------------------
+local fdef, errfdef = loadfile('./Scripts/Input/DefaultAssignments.lua') 
+if  fdef then
+	setfenv(fdef, {})
+	local ok, res = pcall(fdef)
+	if ok then
+		default_assignments = res
 	else
-		disabledDevices_[deviceName] = nil
-		Input.setDeviceDisabled(deviceName, false)
+		log.error('Cannot load default assignments '..res)
 	end
+else
+	log.error('Cannot load default assignments '.. errfdef)
 end
+------------------------------------------------------------------------------
 
-local function getDeviceDisabled(deviceName)
-	return disabledDevices_[deviceName] or false
-end
-
-local function getWizardAssignments()
-	-- Попробуем перезагрузить файла
-	if not wizard_assigments then
-		local f, err = loadfile(lfs.writedir() .. 'Config/Input/wizard.lua')
-		
-		if f then
-			wizard_assigments = f()
-		end
-	end
-	
-	return wizard_assigments
-end
-
-return {
-	setController						= setController,
-	initialize							= initialize,
-	enablePrintToLog					= enablePrintToLog,
+local module_interface = {
 	commandCombos						= commandCombos,
-	getUnitMarker						= getUnitMarker,
-	getProfileNames						= getProfileNames,
-	getProfileNameByUnitName			= getProfileNameByUnitName,
-	getProfileUnitName					= getProfileUnitName,
-	getProfileModifiers					= getProfileModifiers,
-	getProfileModified					= getProfileModified,
-	getProfileCategoryNames				= getProfileCategoryNames,
-	getProfileKeyCommands				= getProfileKeyCommands,
-	getProfileKeyCommand				= getProfileKeyCommand,
-	getProfileRawKeyCommands			= getProfileRawKeyCommands, -- для утилит в Utils/Input
-	getProfileAxisCommands				= getProfileAxisCommands,
-	getProfileAxisCommand				= getProfileAxisCommand,
-	getProfileRawAxisCommands			= getProfileRawAxisCommands,-- для утилит в Utils/Input
-	getProfileChanged					= getProfileChanged,
+	getProfileKeyCommands				= getProfileKeyCommandsCopy,
+	getProfileAxisCommands				= getProfileAxisCommandsCopy,
 	createForceFeedbackSettings			= createForceFeedbackSettings,
-	createProfile						= createProfile,
-	getDefaultKeyCommands				= getDefaultKeyCommands,
-	getDefaultKeyCommand				= getDefaultKeyCommand,	
-	setDefaultKeyCommandCombos			= setDefaultKeyCommandCombos,
-	addComboToKeyCommand				= addComboToKeyCommand,
-	addComboToAxisCommand				= addComboToAxisCommand,
-	removeKeyCommandCombos				= removeKeyCommandCombos,
-	removeAxisCommandCombos				= removeAxisCommandCombos,
-	getDefaultAxisCommands				= getDefaultAxisCommands,
-	getDefaultAxisCommand				= getDefaultAxisCommand,
-	setDefaultAxisCommandCombos			= setDefaultAxisCommandCombos,
-	setAxisCommandComboFilter			= setAxisCommandComboFilter,
 	getProfileForceFeedbackSettings		= getProfileForceFeedbackSettings,
-	setProfileForceFeedbackSettings		= setProfileForceFeedbackSettings,
-	setProfileModifiers					= setProfileModifiers,
 	createAxisFilter					= createAxisFilter,
 	setAxisComboFilters					= setAxisComboFilters,
 	createModifier						= createModifier,
-	getDefaultProfileName				= getDefaultProfileName,
 	getDeviceProfile					= getDeviceProfile,
-	loadDeviceProfile					= loadDeviceProfile,
 	saveDeviceProfile					= saveDeviceProfile,
-	saveChanges							= saveChanges,
-	undoChanges							= undoChanges,
 	loadDeviceProfileFromFile			= loadDeviceProfileFromFile,
-	getProfileFolder					= getProfileFolder, -- используется в Utils/Input/CreateDefaultDeviceLayout.lua
-	saveFullDeviceProfile				= saveFullDeviceProfile, -- используется в Utils/Input/CreateDefaultDeviceLayout.lua
-	unloadProfiles						= unloadProfiles, -- подключено/отключено устройство - сбрасываем все загруженные профили
-	unloadProfile						= unloadProfile, -- подключено/отключено устройство - сбрасываем загруженный профиль
-	getKeyIsInUseInUiLayer				= getKeyIsInUseInUiLayer, -- кнопка назначена в слое для UI
-	clearProfile						= clearProfile,
 	getUiProfileName					= getUiProfileName,
-	setDeviceDisabled					= setDeviceDisabled,
-	getDeviceDisabled					= getDeviceDisabled,
-	getWizardAssignments 				= getWizardAssignments,
+	unloadProfile						= unloadProfile,				-- подключено/отключено устройство - сбрасываем загруженный профиль
+	--interface functions only
+	setController 					= function(controller)
+		controller_ = controller
+	end,
+	initialize 						= function(userConfigPath, sysConfigPath)
+		userConfigPath_ = userConfigPath
+		sysConfigPath_ 	= sysConfigPath
+		sysPath_ 		= sysConfigPath .. 'Aircrafts/'
+		
+		if userConfigPath_ then
+			local f, err = loadfile(userConfigPath_ .. disabledFilename_)
+			if f then
+				local ok, res = pcall(f)
+				if ok then
+					disabledDevices_ = res.devices
+					for deviceName, disabled in pairs(disabledDevices_) do
+						Input.setDeviceDisabled(deviceName, true)
+					end
+					Input.setPnPDisabled(res.pnp)
+				else
+					printLog('Unable to load disabled devices!', res)
+				end
+			end	
+		end
+
+		local f, err = loadfile(lfs.writedir() .. 'Config/autoexec.cfg')
+		
+		if f then
+			local env = {}
+			
+			setmetatable(env, {__index = _G})
+			setfenv(f, env)
+			
+			local ok, res = pcall(f)
+			if ok then
+				turnLocalizationHintsOn_ = env.input_localization_hints_on
+			end
+		end
+	end,
+	enablePrintToLog 				= function(enable)
+		printLogEnabled_ = enable
+	end,
+	getUnitMarker 					= function()
+		return 'Unit '
+	end,
+	getProfileNames 				= function()
+		local result = {}
+		for i, profile in ipairs(profiles_) do
+			if profile.visible then
+				table.insert(result, profile.name)
+			end
+		end
+		return result
+	end,
+	getProfileNameByUnitName 		= function(unitName)
+		local unitProfile
+		
+		for i, profile in ipairs(profiles_) do
+			if profile.unitName == unitName then
+				unitProfile = profile
+				
+				break
+			end
+		end
+		
+		if not unitProfile then
+			unitProfile = aliases_[unitName]
+		end
+		
+		if unitProfile then
+			return unitProfile.name
+		end
+	end,
+	getProfileUnitName				= function(profileName)
+		local profile = findProfile_(profileName)
+		if profile then
+			return profile.unitName
+		end
+	end,
+	getProfileModifiers				= function(profileName)
+		local modifiers = {}
+		local profile = getLoadedProfile_(profileName)
+		
+		if profile then
+			U.copyTable(modifiers, profile.modifiers)
+		end	
+		
+		return modifiers
+	end,
+	getProfileModified				= function(profileName)
+		local  profile = findProfile_(profileName)
+		return profile and profile.modified
+	end,
+	getProfileChanged 				= function(profileName)
+		local profile = findProfile_(profileName)
+		return profile and profile.loaded and profile.modified
+	end,
+	getProfileCategoryNames			= function(profileName)
+		local result = {}
+		local profile = getLoadedProfile_(profileName)
+		
+		if profile then
+			if not profile.loaded then
+				loadProfile(profile)
+			end
+
+			if profile.categories then
+				U.copyTable(result, profile.categories)
+			end
+		end
+		
+		return result
+	end,
+	getProfileKeyCommand			= function(profileName, commandHash)
+		local profile = getLoadedProfile_(profileName)
+		
+		if profile then
+			local command = profile.keyCommands[commandHash]
+			
+			if command then
+				return U.copyTable(nil, command)
+			end
+		end
+	end,
+	getProfileAxisCommand			= function(profileName, commandHash)
+		local profile = getLoadedProfile_(profileName)
+		
+		if profile then
+			local command = profile.axisCommands[commandHash]
+			
+			if command then
+				return U.copyTable(nil, command)
+			end
+		end
+	end,
+	createProfile 					= function(profileInfo)
+		local profile = findProfile_(profileInfo.name)
+		
+		if profile then
+			-- некоторые профили используются разными юнитами
+			-- например Spitfire
+			-- InputProfiles = {
+				-- ["SpitfireLFMkIX"]			= current_mod_path .. '/Input/SpitfireLFMkIX',
+				-- ["SpitfireLFMkIXCW"]			= current_mod_path .. '/Input/SpitfireLFMkIX',
+			 -- },
+			if profile.unitName ~= profileInfo.unitName then
+				aliases_[profileInfo.unitName] = profile
+			end
+		else
+			profile = createProfileTable_(profileInfo.name,
+										  profileInfo.folder,
+										  profileInfo.unitName,
+										  profileInfo.default,
+										  profileInfo.visible,
+										  profileInfo.loadDefaultUnitProfile)
+										  
+			table.insert(profiles_, profile)
+		end
+	end,
+	getProfileRawKeyCommands		= function(profileName)
+		local result = {}
+		local profile = getLoadedProfile_(profileName)
+		
+		if profile then
+			result = U.copyTable(nil, profile.keyCommands)
+		end
+		
+		return result
+	end,
+	getProfileRawAxisCommands		= function(profileName)
+		local result = {}
+		local profile = getLoadedProfile_(profileName)
+		if profile then
+			result = U.copyTable(nil, profile.axisCommands)
+		end	
+		return result
+	end,
+	getDefaultKeyCommand 			= function(profileName, commandHash)
+		local command = findDefaultKeyCommand_(profileName, commandHash)
+		
+		if command then
+			return U.copyTable(nil, command)
+		end	
+	end,
+	setDefaultKeyCommandCombos		= function(profileName, commandHash, deviceName)
+		local defaultKeyCommand = findDefaultKeyCommand_(profileName, commandHash)
+		if not defaultKeyCommand then
+			return 
+		end
+		local keyCommand = findKeyCommand_(profileName, commandHash)
+		if not keyCommand then
+			return 
+		end
+		local profile = getLoadedProfile_(profileName)
+		local keyCommands = profile.keyCommands	
+		setDefaultCommandCombos_(profileName, deviceName, defaultKeyCommand, keyCommand, keyCommands)
+		setProfileModified_(profile, true)
+	end,
+	addComboToKeyCommand			= function(profileName, commandHash, deviceName, combo)
+		local command = findKeyCommand_(profileName, commandHash)
+		
+		if command then
+			local profile = getLoadedProfile_(profileName)
+			local commands = profile.keyCommands
+			
+			removeComboFromCommands_(profileName, deviceName, commands, combo)
+			addComboToCommand_(profileName, deviceName, command, combo)
+			setProfileModified_(profile, true)
+		end	
+	end,
+	addComboToAxisCommand 			= function(profileName, commandHash, deviceName, combo)
+		local command = findAxisCommand_(profileName, commandHash)
+		
+		if command then
+			local profile = getLoadedProfile_(profileName)
+			local commands = profile.axisCommands
+			
+			removeComboFromCommands_(profileName, deviceName, commands, combo)
+			addComboToCommand_(profileName, deviceName, command, combo)
+			setProfileModified_(profile, true)
+		end
+	end,
+	removeKeyCommandCombos			= function(profileName, commandHash, deviceName)
+		local command = findKeyCommand_(profileName, commandHash)
+		
+		removeCombosFromCommand_(profileName, command, deviceName)
+		setProfileModified_(getLoadedProfile_(profileName), true)
+	end,
+	removeAxisCommandCombos 		= function(profileName, commandHash, deviceName)
+		local command = findAxisCommand_(profileName, commandHash)
+		
+		removeCombosFromCommand_(profileName, command, deviceName)
+		setProfileModified_(getLoadedProfile_(profileName), true)
+	end,
+	getDefaultAxisCommand 			= function(profileName, commandHash)
+		local command = findDefaultAxisCommand_(profileName, commandHash)
+		
+		if command then
+			return U.copyTable(nil, command)
+		end
+	end,
+	setDefaultAxisCommandCombos 	= function(profileName, commandHash, deviceName)
+		local defaultAxisCommand = findDefaultAxisCommand_(profileName, commandHash)
+		if not defaultAxisCommand then
+			return
+		end
+		local axisCommand = findAxisCommand_(profileName, commandHash)
+		if not axisCommand then
+			return
+		end
+		local profile = getLoadedProfile_(profileName)
+		local axisCommands = profile.axisCommands	
+				
+		setDefaultCommandCombos_(profileName, deviceName, defaultAxisCommand, axisCommand, axisCommands)
+		setProfileModified_(profile, true)
+	end,
+	setAxisCommandComboFilter		= function(profileName, commandHash, deviceName, filters)
+		local command = findAxisCommand_(profileName, commandHash)
+		local combos = command.combos
+		
+		if combos then
+			setAxisComboFilters(combos[deviceName], filters)
+			setProfileModified_(getLoadedProfile_(profileName), true)
+		end	
+	end,
+	setProfileForceFeedbackSettings = function(profileName, deviceName, settings)
+		local profile = getLoadedProfile_(profileName)
+		
+		profile.forceFeedback[deviceName] = U.copyTable(nil, settings)
+		setProfileModified_(profile, true)
+	end,
+	setProfileModifiers 	= function(profileName, modifiers)		
+		local profile = getLoadedProfile_(profileName)
+		profile.modifiers = U.copyTable(nil, modifiers)
+		for i, profile in ipairs(profiles_) do
+			local profileName = profile.name
+
+			validateCommands_(profileName, profile.keyCommands)
+			validateCommands_(profileName, profile.axisCommands)		
+		end
+		setProfileModified_(profile, true)
+	end,
+	getDefaultProfileName	= function()
+		for i, profile in ipairs(profiles_) do
+			if profile.default then
+				return profile.name
+			end	
+		end
+	end,
+	loadDeviceProfile		= function(profileName, deviceName, filename)
+		local deviceProfile = getDeviceProfile(profileName, deviceName)
+		if not deviceProfile then 
+			return
+		end
+		local diff = loadDeviceProfileDiffFromFile_(filename)
+		if not diff then
+			return 
+		end
+		
+		local profile = getLoadedProfile_(profileName)
+
+		applyDiffToDeviceProfile_(deviceProfile, diff)
+		setProfileDeviceProfile_(profile, deviceName, deviceProfile)
+
+		deleteDeviceCombos_(profile.keyCommands, deviceName)
+		deleteDeviceCombos_(profile.axisCommands, deviceName)
+		
+		addProfileKeyCommands(profileName, deviceName, deviceProfile, profile.keyCommands)
+		addProfileAxisCommands(profileName, deviceName, deviceProfile, profile.axisCommands)
+		addProfileForceFeedbackSettings(profile, deviceName, deviceProfile)
+
+		setProfileModified_(profile, true)
+	end,
+	saveChanges 			= function()
+		local devices = InputUtils.getDevices()
+
+		for i, profile in ipairs(profiles_) do
+			if profile.loaded and profile.modified then
+				local profileName = profile.name
+				local profileUserConfigPath = getProfileUserConfigPath_(profile)
+				
+				lfs.mkdir(profileUserConfigPath)
+				
+				saveProfileModifiers_(profileName, profileUserConfigPath)
+		
+				for j, deviceName in ipairs(devices) do
+					local deviceTypeName = InputUtils.getDeviceTypeName(deviceName)
+					local folder = string.format('%s%s', profileUserConfigPath, deviceTypeName)
+					local filename = string.format('%s/%s.diff.lua', folder, deviceName)
+					
+					lfs.mkdir(folder)
+					saveDeviceProfile(profileName, deviceName, filename)
+				end
+				
+				setProfileModified_(profile, false)
+			end	
+		end
+		
+		saveDisabledDevices()
+		
+		if controller_ then
+			controller_.inputDataSaved()
+		end
+	end,
+	undoChanges 			= function()
+		for i, profile in ipairs(profiles_) do
+			if profile.loaded and profile.modified then
+				profiles_[i] = createProfileTable_(	profile.name,
+													profile.folder,
+													profile.unitName,
+													profile.default,
+													profile.visible,
+													profile.loadDefaultUnitProfile)
+			end
+		end	
+		
+		if controller_ then
+			controller_.inputDataRestored()
+		end
+	end,
+	getProfileFolder 		= function(profileName)
+		local profile = findProfile_(profileName)
+		if profile then
+			return profile.folder
+		end
+	end,
+	unloadProfiles			= function()								 -- подключено/отключено устройство - сбрасываем все загруженные профили
+		wizard_assigments = nil
+		local newProfiles = {}
+		for i, profile in ipairs(profiles_) do
+			local newProfile = createProfileTable_(	profile.name,
+													profile.folder,
+													profile.unitName,
+													profile.default,
+													profile.visible,
+													profile.loadDefaultUnitProfile)
+											  
+			table.insert(newProfiles, newProfile)
+		end
+		profiles_ = newProfiles
+	end,
+	saveFullDeviceProfile	= function(profileName, deviceName, filename)-- используется в Utils/Input/CreateDefaultDeviceLayout.lua
+		local file, err = io.open(filename, 'w')
+		
+		if file then
+			file:write('return {\n')
+			
+			writeForceFeedbackToFile(file, profileName, deviceName)
+			writeKeyCommandsToFile	(file, profileName, deviceName)	
+			writeAxisCommandsToFile	(file, profileName, deviceName)
+		
+			file:write('}')
+			file:close()
+		else
+			log.error(string.format('Cannot save profile into file[%s]! Error %s', filename, err))
+		end
+	end,
+	getKeyIsInUseInUiLayer	= function(deviceName, key)					 -- кнопка назначена в слое для UI
+		return uiLayerKeyHashes_[createKeyHash_(deviceName, key)]
+	end,
+	clearProfile			= function(profileName, deviceNames)
+		local profile = getLoadedProfile_(profileName)
+		if not profile then
+			return
+		end
+		for i, deviceName in ipairs(deviceNames) do
+			for commandHash, command in pairs(profile.axisCommands) do
+				removeCombosFromCommand_(profileName, command, deviceName)
+			end
+			
+			for commandHash, command in pairs(profile.keyCommands) do
+				removeCombosFromCommand_(profileName, command, deviceName)
+			end
+		end
+		setProfileModified_(profile, true)
+	end,
+	setDeviceDisabled 		= function(deviceName, disabled)
+		if disabled then
+			disabledDevices_[deviceName] = true
+		else
+			disabledDevices_[deviceName] = nil
+		end
+		Input.setDeviceDisabled(deviceName, disabled)
+	end,
+	getDeviceDisabled 		= function(deviceName)
+		return disabledDevices_[deviceName] or false
+	end,
+	getWizardAssignments 	= function()
+		if wizard_assigments then 
+			return wizard_assigments 
+		end
+		--load  from user folder
+		local f, err = loadfile(lfs.writedir() .. 'Config/Input/wizard.lua')
+		if f then
+			wizard_assigments = f()
+		end
+		return wizard_assigments
+	end,
+	getDefaultKeyCommands	= function(profileName)
+		local profile = getLoadedProfile_(profileName)
+
+		return U.copyTable(nil, profile.defaultKeyCommands)
+	end,
+	getDefaultAxisCommands	= function(profileName)
+		local profile = getLoadedProfile_(profileName)
+		return U.copyTable(nil, profile.defaultAxisCommands)
+	end,
 }
+------------------------------------------------------------------------------
+return  module_interface
