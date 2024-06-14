@@ -24,18 +24,18 @@ In my case, on my Saitek X-55 Throttle there is an airbrake slider switch that w
 
 Until now the solution was to find the control definition file `DCSWorld\Mods\aircraft\FA-18C\Input\FA-18C\joystick\default.lua` and insert your custom command somewhere inside of it, if you weren't using a mod manager then every time the game was updated your change would be erased and you'd need reinsert your commands into the files for every aircraft you changed.
 
-If you were using a mod manager such as OVGME if you reapplied your mod after an update and the developers had changed the input commands things could break and conflict.
+If you were using a mod manager such as Open Mod Manager/OVGME if you reapplied your mod after an update and the developers had changed the input commands things could break and conflict.
 
-With this mod you should just need to re-enable it after every DCS update with OVGME and your custom commands are safe with no need no change anything.
+With this mod you should just need to re-enable it after every DCS update with Open Mod Manager/OVGME and your custom commands are safe with no need no change anything.
 
 ## Installation
 
 1. Go to the [latest release](https://github.com/Quaggles/dcs-input-command-injector/releases/latest)
 2. Download `DCS-Input-Command-Injector-Quaggles.zip`
 
-### [OVGME (Recommended)](https://wiki.hoggitworld.com/view/OVGME)
+### [Open Mod Manager (Recommended)](https://github.com/sedenion/OpenModMan/releases/)
 3. Drop the zip file in your mod directory
-4. Enable mod in OVGME
+4. Enable mod in Open Mod Manager
 5. Reenable with each DCS update
 
 ### Manual
@@ -43,7 +43,7 @@ With this mod you should just need to re-enable it after every DCS update with O
 4. Find the `DCS-Input-Command-Injector-Quaggles/Scripts` folder
 5. Move it into your `DCSWorld/` folder
 6. Windows Explorer will ask you if you want to replace `Data.lua`, say yes
-7. Repeat this process every DCS update, if you use OVGME you can just reenable the mod and it handles this for you
+7. Repeat this process every DCS update, if you use Open Mod Manager/OVGME you can just reenable the mod and it handles this for you
 
 ## Configuration
 
