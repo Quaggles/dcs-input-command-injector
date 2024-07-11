@@ -392,6 +392,22 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 				return nil
 			end
 
+			env.MultiEngineDefaultDeviceAssignmentForThrust = function ()
+				local common  = env.defaultDeviceAssignmentFor("thrust")
+				local left    = env.defaultDeviceAssignmentFor("thrust_left")
+				local right   = env.defaultDeviceAssignmentFor("thrust_right")
+				if not common then 
+					return nil,left,right
+				end
+
+				if  left  and left [1].key  and  
+					right and right[1].key  then
+					return nil,left,right
+				end
+				return common,nil,nil
+			end
+
+
 			env.join = function(to, from)
 				for i, value in ipairs(from) do									
 					table.insert(to, value)
