@@ -277,7 +277,7 @@ local function loadDeviceProfileFromFile(filename, deviceName, folder,keep_G_unt
 			end
 		end
 	end
-	
+
 	local f, err = loadfile(filename)
 	local result
 	local deviceGenericName
@@ -1198,11 +1198,10 @@ end
 
 local function validateProfileCommandCombos(profileName, command)
 	local result  = not command.updated
-	if result then
-		local profile   = findProfile_(profileName)
-	
-		local modifiers = profile.modifiers
-		
+	local profile   = findProfile_(profileName)
+	local modifiers = profile.modifiers
+
+	if result then		
 		for deviceName, combos in pairs(command.combos) do
 			for i, combo in ipairs(combos) do
 				local warnings	= {}
@@ -1223,6 +1222,38 @@ local function validateProfileCommandCombos(profileName, command)
 	end
 
 	return result
+end
+
+local function checkDeviceCombosIntersectionInProfile(profileName, deviceName, commandsHashTable)
+	local profile   = findProfile_(profileName)
+	local modifiers = profile.modifiers
+
+	for commandHash1, command1 in pairs(commandsHashTable) do
+		if command1.combos and command1.combos[deviceName] then
+			for i, combo1 in ipairs(command1.combos[deviceName]) do
+				local combo1Hash = createComboHash_(deviceName, combo1, modifiers)
+				for commandHash2, command2 in pairs(commandsHashTable) do
+					if command1.name ~= command2.name and command2.combos and command2.combos[deviceName] then
+						for i, combo2 in ipairs(command2.combos[deviceName]) do
+							if combo1Hash == createComboHash_(deviceName, combo2, modifiers) then
+								printLog('Profile [' .. profileName .. '] command [' .. command1.name .. '] contains combo [' .. InputUtils.createComboString(combo1, deviceName) .. '] equal to combo in [' .. command2.name .. ']')
+								combo1.valid = false
+								command1.valid = false
+								combo1.warnings = combo1.warnings and combo1.warnings.."\n" or ""
+								combo1.warnings = combo1.warnings .. string.format(_('Is equal to combo in command %s'), command2.name)
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+local function updateCommandValidation(profileName, deviceName, command, isAxisCommand)
+	local profile = getLoadedProfile_(profileName)
+	command.valid = validateProfileCommandCombos(profileName, command)
+	checkDeviceCombosIntersectionInProfile(profileName, deviceName, isAxisCommand and profile.axisCommands or profile.keyCommands)
 end
 
 local function findCommandByHash_(commands, commandHash)
@@ -1303,6 +1334,7 @@ local function removeCombosFromCommand_(profileName, command, deviceName)
 			end
 		end
 	
+		command.updated = false
 		command.valid = validateProfileCommandCombos(profileName, command)
 	end
 end
@@ -1372,6 +1404,8 @@ local function addProfileKeyCommands(profileName, deviceName, deviceProfile, com
 		for i, keyCommand in ipairs(keyCommands) do
 			addProfileKeyCommand(profileName, deviceName, keyCommand, commandsHashTable, combosHashTable)
 		end
+
+		checkDeviceCombosIntersectionInProfile(profileName, deviceName, commandsHashTable)
 	end
 end
 
@@ -1411,6 +1445,8 @@ local function addProfileAxisCommands(profileName, deviceName, deviceProfile, co
 		for i, axisCommand in ipairs(deviceProfile.axisCommands) do 
 			addProfileAxisCommand(profileName, deviceName, axisCommand, commandsHashTable, combosHashTable)
 		end
+
+		checkDeviceCombosIntersectionInProfile(profileName, deviceName, commandsHashTable)
 	end
 end
 
@@ -1430,7 +1466,7 @@ local function getProfileForceFeedbackSettings(profileName, deviceName)
 end
 
 local function validateCommands_(profileName, commands)
-	if commands then
+	if commands then--check
 		for commandHash, command in pairs(commands) do
 			command.valid = validateProfileCommandCombos(profileName, command)
 		end
@@ -2690,6 +2726,7 @@ local module_interface = {
 		local profile = getLoadedProfile_(profileName)
 		return U.copyTable(nil, profile.defaultAxisCommands)
 	end,
+	updateCommandValidation = updateCommandValidation,
 }
 ------------------------------------------------------------------------------
 return  module_interface
