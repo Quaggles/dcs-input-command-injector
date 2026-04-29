@@ -2624,6 +2624,7 @@ local module_interface = {
 		end
 	end,
 	undoChanges 			= function()
+		local modified_count = 0
 		for i, profile in ipairs(profiles_) do
 			if profile.loaded and profile.modified then
 				profiles_[i] = createProfileTable_(	profile.name,
@@ -2632,12 +2633,14 @@ local module_interface = {
 													profile.default,
 													profile.visible,
 													profile.loadDefaultUnitProfile)
+				modified_count = modified_count + 1
 			end
 		end	
 		
 		if controller_ then
 			controller_.inputDataRestored()
 		end
+		return modified_count
 	end,
 	getProfileFolder 		= function(profileName)
 		local profile = findProfile_(profileName)
