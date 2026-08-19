@@ -1,10 +1,66 @@
 local lfs = require('lfs')
 local log = require('log')
 local quagglesLogName = 'Quaggles.InputCommandInjector'
+-- Release packaging replaces this placeholder in the staged copy; source checkouts remain unversioned.
+local quagglesVersion = '__QUAGGLES_VERSION__'
+local updateUrl = 'https://api.github.com/repos/Quaggles/dcs-input-command-injector/releases/latest'
+local updateInterval = 7 * 24 * 60 * 60
 local openErrorDialogs = {}
 local suppressedErrorDialogs = {}
 local suppressAllErrorDialogs = false
 
+-- Parse a dotted numeric version, optionally prefixed with "v", for both mod and DCS versions.
+local function versionParts(version)
+	if type(version) ~= 'string' then
+		return nil
+	end
+	if version:sub(1, 1) == 'v' then
+		version = version:sub(2)
+	end
+	if version == '' or version:find('[^%d%.]') or version:find('..', 1, true) or
+		version:sub(1, 1) == '.' or version:sub(-1) == '.' then
+		return nil
+	end
+
+	local parts = {}
+	for part in version:gmatch('[^.]+') do
+		parts[#parts + 1] = tonumber(part)
+	end
+	return parts
+end
+
+-- Compare dotted versions numerically, returning -1, 0, 1, or nil for invalid input.
+local function compareVersions(left, right)
+	local leftParts = versionParts(left)
+	local rightParts = versionParts(right)
+	if not leftParts or not rightParts then
+		return nil
+	end
+	for index = 1, math.max(#leftParts, #rightParts) do
+		local leftPart = leftParts[index] or 0
+		local rightPart = rightParts[index] or 0
+		if leftPart ~= rightPart then
+			return leftPart < rightPart and -1 or 1
+		end
+	end
+	return 0
+end
+
+-- Check weekly, after clock rollback, or when DCS advances beyond the highest version already seen.
+local function shouldCheckForUpdate(settings, now, dcsVersion)
+	if settings.disableUpdateCheck then
+		return false
+	end
+	local lastCheck = settings.lastUpdateCheck
+	if type(lastCheck) ~= 'number' or now < lastCheck or now - lastCheck >= updateInterval then
+		return true
+	end
+	if not versionParts(dcsVersion) then
+		return false
+	end
+	local dcsComparison = compareVersions(dcsVersion, settings.lastDcsVersion)
+	return dcsComparison == nil or dcsComparison > 0
+end
 local function reportError(message, showRepoLink)
 	message = tostring(message)
 	log.write(quagglesLogName, log.ERROR, message)
@@ -63,6 +119,183 @@ local function reportError(message, showRepoLink)
 		openErrorDialogs[dialogText] = nil
 		log.write(quagglesLogName, log.ERROR, 'Unable to display error message: '..tostring(showError))
 	end
+end
+
+-- Display update availability separately from injector errors so network failures remain silent to users.
+local function reportUpdate(latestVersion, releaseUrl)
+	local loaded, MsgWindow = pcall(require, 'MsgWindow')
+	if not loaded then
+		log.write(quagglesLogName, log.WARNING, 'Unable to display update message: '..tostring(MsgWindow))
+		return
+	end
+
+	local shown, showError = pcall(function()
+		local ok = 'OK'
+		local message = 'A newer Quaggles Input Command Injector release is available.\n\n'..
+			'Installed: '..quagglesVersion..'\nLatest: '..latestVersion..'\n\n'..releaseUrl
+		local handler = MsgWindow.info(message, 'Quaggles Input Command Injector Update', ok)
+		handler:setDefaultButton(ok)
+		handler:show()
+	end)
+	if not shown then
+		log.write(quagglesLogName, log.WARNING, 'Unable to display update message: '..tostring(showError))
+	end
+end
+
+local settingsDirectory = lfs.writedir()..'InputCommands'
+local settingsPath = settingsDirectory..'/settings.lua'
+
+-- Persist the small mod-owned settings table directly.
+local function saveSettings(settings)
+	local file, openError = io.open(settingsPath, 'w')
+	if not file then
+		return false, openError
+	end
+
+	local written, writeError = pcall(function()
+		file:write('return {\n')
+		file:write('\tdisableUpdateCheck = '..tostring(settings.disableUpdateCheck == true)..',\n')
+		file:write('\tlastUpdateCheck = '..(settings.lastUpdateCheck and tostring(math.floor(settings.lastUpdateCheck)) or 'nil')..',\n')
+		file:write('\tlastDcsVersion = '..(settings.lastDcsVersion and string.format('%q', settings.lastDcsVersion) or 'nil')..',\n')
+		file:write('}\n')
+	end)
+	local closed, closeError = pcall(function() file:close() end)
+	if not written or not closed then
+		return false, writeError or closeError
+	end
+	return true
+end
+
+-- Create defaults when absent and sandbox/validate an existing Lua settings file before using it.
+local function loadSettings()
+	local fallback = {disableUpdateCheck = false}
+	local directoryAttributes = lfs.attributes(settingsDirectory)
+	if directoryAttributes and directoryAttributes.mode ~= 'directory' then
+		log.write(quagglesLogName, log.WARNING, 'Update settings path is not a directory: '..settingsDirectory)
+		return fallback, false
+	elseif not directoryAttributes then
+		local created, createError = lfs.mkdir(settingsDirectory)
+		if not created then
+			log.write(quagglesLogName, log.WARNING, 'Unable to create update settings directory: '..tostring(createError))
+			return fallback, false
+		end
+	end
+
+	if not lfs.attributes(settingsPath) then
+		local settings = fallback
+		local saved, saveError = saveSettings(settings)
+		if not saved then
+			log.write(quagglesLogName, log.WARNING, 'Unable to create update settings: '..tostring(saveError))
+		end
+		return settings, saved
+	end
+
+	local chunk, loadError = loadfile(settingsPath)
+	if not chunk then
+		log.write(quagglesLogName, log.WARNING, 'Unable to load update settings: '..tostring(loadError))
+		return fallback, false
+	end
+	setfenv(chunk, {})
+	local loaded, settings = pcall(chunk)
+	if not loaded or type(settings) ~= 'table' then
+		log.write(quagglesLogName, log.WARNING, 'Invalid update settings: '..tostring(settings))
+		return fallback, false
+	end
+
+	local valid = (settings.disableUpdateCheck == nil or type(settings.disableUpdateCheck) == 'boolean') and
+		(settings.lastUpdateCheck == nil or
+			(type(settings.lastUpdateCheck) == 'number' and settings.lastUpdateCheck >= 0 and settings.lastUpdateCheck == math.floor(settings.lastUpdateCheck))) and
+		(settings.lastDcsVersion == nil or versionParts(settings.lastDcsVersion) ~= nil)
+	if not valid then
+		log.write(quagglesLogName, log.WARNING, 'Invalid values in update settings; file left unchanged')
+		return fallback, false
+	end
+	settings.disableUpdateCheck = settings.disableUpdateCheck == true
+	return settings, true
+end
+
+-- Start a best-effort HTTPS check using DCS's native asynchronous web and GUI update APIs.
+local function startUpdateCheck()
+	local settings, settingsWritable = loadSettings()
+	if settings.disableUpdateCheck then
+		return
+	end
+	if not versionParts(quagglesVersion) then
+		log.write(quagglesLogName, log.INFO, 'Update check skipped for an unversioned development copy')
+		return
+	end
+
+	local dcsVersion = rawget(_G, '__DCS_VERSION__') or rawget(_G, '_APP_VERSION')
+	local now = os.time()
+	if not shouldCheckForUpdate(settings, now, dcsVersion) then
+		return
+	end
+
+	local UpdateManager = require('UpdateManager')
+	if type(DcsWeb) ~= 'table' or type(DcsWeb.send_request) ~= 'function' or
+		type(DcsWeb.get_status) ~= 'function' or type(DcsWeb.get_data) ~= 'function' or
+		type(DcsWeb.drop_result) ~= 'function' or type(UpdateManager.add) ~= 'function' or
+		type(net) ~= 'table' or type(net.json2lua) ~= 'function' then
+		error('DCS web API is unavailable')
+	end
+
+	-- Record completed attempts even on HTTP failure so an offline startup does not retry every launch.
+	local function recordAttempt()
+		settings.lastUpdateCheck = os.time()
+		local comparison = compareVersions(dcsVersion, settings.lastDcsVersion)
+		if versionParts(dcsVersion) and (comparison == nil or comparison > 0) then
+			settings.lastDcsVersion = dcsVersion
+		end
+		if settingsWritable then
+			local saved, saveError = saveSettings(settings)
+			if not saved then
+				log.write(quagglesLogName, log.WARNING, 'Unable to save update settings: '..tostring(saveError))
+			end
+		end
+	end
+
+	local requested, requestError = pcall(DcsWeb.send_request, updateUrl)
+	if not requested then
+		recordAttempt()
+		error('Unable to start update request: '..tostring(requestError))
+	end
+
+	local startedAt = type(DCS) == 'table' and type(DCS.getRealTime) == 'function' and DCS.getRealTime() or os.time()
+	-- UpdateManager runs this once per GUI frame; returning true unregisters it, false keeps polling.
+	UpdateManager.add(function()
+		local completed, completionError = pcall(function()
+			local status = DcsWeb.get_status(updateUrl)
+			local currentTime = type(DCS) == 'table' and type(DCS.getRealTime) == 'function' and DCS.getRealTime() or os.time()
+			if status == 102 and currentTime - startedAt < 15 then
+				return false
+			end
+
+			local response = status == 200 and DcsWeb.get_data(updateUrl) or nil
+			DcsWeb.drop_result(updateUrl)
+			recordAttempt()
+			if status ~= 200 then
+				log.write(quagglesLogName, log.WARNING, 'Update check failed with status '..tostring(status))
+				return true
+			end
+
+			local parsed, release = pcall(net.json2lua, response)
+			if not parsed or type(release) ~= 'table' or type(release.tag_name) ~= 'string' then
+				log.write(quagglesLogName, log.WARNING, 'Unable to parse GitHub release response')
+				return true
+			end
+			if compareVersions(release.tag_name, quagglesVersion) == 1 then
+				reportUpdate(release.tag_name, release.html_url or 'https://github.com/Quaggles/dcs-input-command-injector/releases/latest')
+			end
+			return true
+		end)
+		if not completed then
+			pcall(DcsWeb.drop_result, updateUrl)
+			recordAttempt()
+			log.write(quagglesLogName, log.WARNING, 'Update check failed: '..tostring(completionError))
+			return true
+		end
+		return completionError
+	end)
 end
 
 local function QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
@@ -236,4 +469,10 @@ end
 local ok, err = pcall(install)
 if not ok then
 	reportError('Unable to install: '..tostring(err))
+end
+
+-- Update failures must never prevent the injector or other DCS hooks from loading.
+local updateOk, updateError = pcall(startUpdateCheck)
+if not updateOk then
+	log.write(quagglesLogName, log.WARNING, 'Unable to start update check: '..tostring(updateError))
 end
