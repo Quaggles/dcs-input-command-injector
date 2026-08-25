@@ -404,7 +404,7 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 			--Configure file to run in same environment as the default command entry file
 			local f, err = loadfile(newFileName)
 			if err ~= nil then
-				reportError('Failed to load custom input commands from "'..tostring(newFileName)..'": '..tostring(err), false)
+				reportError('Failed to load custom input commands from:\n'..tostring(newFileName)..':\n\nError:\n'..tostring(err), false)
 				return
 			else
 				setfenv(f, env)
