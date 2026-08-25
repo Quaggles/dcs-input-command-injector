@@ -542,7 +542,15 @@ local function install()
 	end
 end
 
--- Keep a hook installation failure from preventing other DCS hooks from loading.
+-- Warn the user if they install the hook into Saved Games as Data.lua injection won't work when run from there
+local scriptPath = debug.getinfo(1, 'S').source:gsub('^@', ''):gsub('/', '\\')
+local scriptDirectory = scriptPath:lower():match('^(.*)\\[^\\]+$')
+local writeHooksDirectory = (lfs.writedir()..'Scripts/Hooks'):gsub('/', '\\'):lower()
+if scriptDirectory == writeHooksDirectory then
+	reportError('The Input Command Injector Mod is erroneously installed at:\n'..scriptPath..'\n\nThe mod only works when installed in:\n'..lfs.currentdir()..'Scripts\\Hooks', false)
+	return
+end
+
 local settingsLoaded, settings, settingsWritable = pcall(loadSettings)
 if not settingsLoaded then
 	log.write(quagglesLogName, log.WARNING, 'Unable to initialize settings: '..tostring(settings))
