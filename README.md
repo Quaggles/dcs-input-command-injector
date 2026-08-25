@@ -26,24 +26,25 @@ Until now the solution was to find the control definition file `DCSWorld\Mods\ai
 
 If you were using a mod manager such as Open Mod Manager/OVGME if you reapplied your mod after an update and the developers had changed the input commands things could break and conflict.
 
-With this mod you should just need to re-enable it after every DCS update with Open Mod Manager/OVGME and your custom commands are safe with no need no change anything.
+With this mod things should just keep working automatically between updates unless a DCS patch substantially changes the structure of `DCS World/Scripts/Input/Data.lua`.
 
 ## Installation
 
 1. Go to the [latest release](https://github.com/Quaggles/dcs-input-command-injector/releases/latest)
-2. Download `DCS-Input-Command-Injector-Quaggles.zip`
+2. Download `DCS-Input-Command-Injector-Quaggles-v1.x.x..zip`
 
 ### [Open Mod Manager (Recommended)](https://github.com/sedenion/OpenModMan/releases/)
 3. Drop the zip file in your mod directory
 4. Enable mod in Open Mod Manager
-5. Reenable with each DCS update
 
 ### Manual
 3. Extract the zip
-4. Find the `DCS-Input-Command-Injector-Quaggles/Scripts` folder
-5. Move it into your `DCSWorld/` folder
-6. Windows Explorer will ask you if you want to replace `Data.lua`, say yes
-7. Repeat this process every DCS update, if you use Open Mod Manager/OVGME you can just reenable the mod and it handles this for you
+4. Move `QuagglesInputCommandInjector.lua` into your `DCS World/Scripts/Hooks` folder
+
+Since this mod doesn't replace any DCS files it will survive DCS updates and repairs (Unless "Search for extra files after repair" is enabled and you choose to delete the script)
+
+> [!WARNING]
+> If you are using OVGME/JSGME and have problems installing try using [Open Mod Manager](https://github.com/sedenion/OpenModMan/releases/) or installing manually.
 
 ## Configuration
 
@@ -147,12 +148,12 @@ Note: May get broken by Heatblur at any time and could be considered unscrupulou
 
 # FAQ
 ## My new input commands aren't showing up ingame
-First look at `Saved Games\DCS\Logs\dcs.log` at the bottom is likely an error telling you what went wrong in your code, for finding syntax errors in lua I would recommend [Visual Studio Code](https://code.visualstudio.com/) with the [vscode-lua extension](https://marketplace.visualstudio.com/items?itemName=trixnz.vscode-lua), it should highlight them all in red for you making it easy to find that missing comma 😄
+If you didn't see any ingame error messages when the controls loaded set `["verboseLogging"] = true` in `Saved Games\DCS\InputCommands\settings.lua` and look at `Saved Games\DCS\Logs\dcs.log` for lines starting with `Quaggles.InputCommandInjector`, they should tell you tell you where the input injector is looking for files to inject as each device and control type tries to load, it is quite verbose.
 
-If you have no errors open the mod version of `Scripts\Input\Data.lua` and find the line `local quagglesLoggingEnabled = false` and set it to `true` you will get outputs in the `Saved Games\DCS\Logs\dcs.log` file as the script tries to handle every lua control file, it will tell you the path to the files it is trying to find in your Saved Games folder so you can ensure your folder structure is correct. Remember `../` in a path means get the parent directory.
+If you get an error complaining about syntax errors in lua I would recommend [Visual Studio Code](https://code.visualstudio.com/) with the [vscode-lua extension](https://marketplace.visualstudio.com/items?itemName=trixnz.vscode-lua), it should highlight them all in red for you making it easy to find that missing comma 😄
 
 ## HELP MY CONTROLS MENU IS BLANK/MISSING
-Don't worry, this doesn't mean you've lost all your binds, it means there was an error somewhere in the code loading the commands, usually my injector catches any errors in the `default.lua` and reports them `Saved Games\DCS\Logs\dcs.log`. If you see nothing there it could mean that DCS has been updated and changed the format of the `Scripts/Input/Data.lua` file the mod changes, simple uninstall the mod and the game should work as normal, then wait for an updated version of the mod.
+Don't worry, this doesn't mean you've lost all your binds, it likely means the mod isn't patching DCS correctly, check your `Saved Games\DCS\Logs\dcs.log` for errors, if there are none try removing the mod and reporting the issue.
 
 ## Disclaimer
 I am not responsible for any corrupted binds when you use this mod, I've personally never had an issue with this method but I recommend <b>always</b> keeping backups of your binds (`Saved Games\DCS\Config\Input`) if you value them.
