@@ -138,7 +138,7 @@ local function reportUpdate(latestVersion, releaseUrl)
 	local shown, showError = pcall(function()
 		local ok = 'OK'
 		local message = 'A new Quaggles Input Command Injector version is available!\n\n'..
-			'Current: v'..quagglesVersion..'\nNew: v'..latestVersion..'\n\nDownload from:\n'..releaseUrl..'\n\nTo disable update checks, set disableUpdateCheck = true in:\n'..settingsPath
+			'Current: v'..quagglesVersion..'\nNew: v'..latestVersion..'\n\nDownload from:\n'..releaseUrl..'\n\nTo disable update checks, set ["disableUpdateCheck"] = true in:\n'..settingsPath
 		local handler = MsgWindow.info(message, 'Input Command Injector Mod Update', ok)
 		handler:setDefaultButton(ok)
 		handler:show()
@@ -267,7 +267,7 @@ local function checkDataLuaCompatibility(settings, settingsWritable)
 			'The injector will still run and could still work but if you encounter issues or errors,\n'..
 			'remove the mod first to see if that fixes the issue before reporting bugs to Eagle Dynamics.\n\n'..
 			'This warning will not show again for this version of DCS World.\n\n'..
-			'To disable these warnings completely, set disableDataLuaHashWarning = true in:\n'..settingsPath
+			'To disable these warnings completely, set ["disableDataLuaHashWarning"] = true in:\n'..settingsPath
 		onDismiss = function()
 			settings.warnedDataLuaHashes[hash] = true
 			if settingsWritable then

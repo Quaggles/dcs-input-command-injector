@@ -85,6 +85,16 @@ To work out what to put in these templates reference the developer provided defa
 
 I'd recommend setting a unique category name for your custom commands so that they are easy to find in the menu.
 
+### Mod settings
+
+The mod creates `Saved Games\DCS\InputCommands\settings.lua` the first time it runs. 
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `verboseLogging` | `false` | Logs the input profiles checked, translated custom-command paths, and merge results to `Saved Games\DCS\Logs\dcs.log`. Enable this when troubleshooting missing commands. |
+| `disableUpdateCheck` | `false` | Disables the automatic check for new mod releases. By default, the mod checks at most once a week and when it detects a newer DCS version. |
+| `disableDataLuaHashWarning` | `false` | Disables compatibility warnings when the installed `DCS World\Scripts\Input\Data.lua` has not been tested with this version of the mod.  |
+
 ### Hardlinking
 If you want to have a set of custom commands for both your HOTAS and your keyboard consider [hardlinking](https://schinagl.priv.at/nt/hardlinkshellext/linkshellextension.html) your `default.lua` from your `joystick` folder to your `keyboard` folder.
 
