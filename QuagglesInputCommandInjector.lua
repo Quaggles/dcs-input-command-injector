@@ -1,10 +1,14 @@
 local lfs = require('lfs')
 local log = require('log')
+local Serializer = require('Serializer')
 local quagglesLogName = 'Quaggles.InputCommandInjector'
 -- Release packaging replaces this placeholder in the staged copy; source checkouts remain unversioned.
 local quagglesVersion = '__QUAGGLES_VERSION__'
 local updateUrl = 'https://api.github.com/repos/Quaggles/dcs-input-command-injector/releases/latest'
 local updateInterval = 7 * 24 * 60 * 60
+local testedDataLuaHashes = {
+	['efb180c5feca96373c3f03bc4661be9a'] = true, -- DCS 2.9.28.26385
+}
 local openErrorDialogs = {}
 local suppressedErrorDialogs = {}
 local suppressAllErrorDialogs = false
@@ -153,11 +157,7 @@ local function saveSettings(settings)
 	end
 
 	local written, writeError = pcall(function()
-		file:write('return {\n')
-		file:write('\tdisableUpdateCheck = '..tostring(settings.disableUpdateCheck == true)..',\n')
-		file:write('\tlastUpdateCheck = '..(settings.lastUpdateCheck and tostring(math.floor(settings.lastUpdateCheck)) or 'nil')..',\n')
-		file:write('\tlastDcsVersion = '..(settings.lastDcsVersion and string.format('%q', settings.lastDcsVersion) or 'nil')..',\n')
-		file:write('}\n')
+		Serializer.new(file):serialize_sorted('settings', settings)
 	end)
 	local closed, closeError = pcall(function() file:close() end)
 	if not written or not closed then
@@ -168,15 +168,15 @@ end
 
 -- Create defaults when absent and sandbox/validate an existing Lua settings file before using it.
 local function loadSettings()
-	local fallback = {disableUpdateCheck = false}
+	local fallback = {disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
 	local directoryAttributes = lfs.attributes(settingsDirectory)
 	if directoryAttributes and directoryAttributes.mode ~= 'directory' then
-		log.write(quagglesLogName, log.WARNING, 'Update settings path is not a directory: '..settingsDirectory)
+		log.write(quagglesLogName, log.WARNING, 'Settings path is not a directory: '..settingsDirectory)
 		return fallback, false
 	elseif not directoryAttributes then
 		local created, createError = lfs.mkdir(settingsDirectory)
 		if not created then
-			log.write(quagglesLogName, log.WARNING, 'Unable to create update settings directory: '..tostring(createError))
+			log.write(quagglesLogName, log.WARNING, 'Unable to create settings directory: '..tostring(createError))
 			return fallback, false
 		end
 	end
@@ -185,38 +185,115 @@ local function loadSettings()
 		local settings = fallback
 		local saved, saveError = saveSettings(settings)
 		if not saved then
-			log.write(quagglesLogName, log.WARNING, 'Unable to create update settings: '..tostring(saveError))
+			log.write(quagglesLogName, log.WARNING, 'Unable to create settings: '..tostring(saveError))
 		end
 		return settings, saved
 	end
 
 	local chunk, loadError = loadfile(settingsPath)
 	if not chunk then
-		log.write(quagglesLogName, log.WARNING, 'Unable to load update settings: '..tostring(loadError))
+		log.write(quagglesLogName, log.WARNING, 'Unable to load settings: '..tostring(loadError))
 		return fallback, false
 	end
-	setfenv(chunk, {})
-	local loaded, settings = pcall(chunk)
+	local environment = {}
+	setfenv(chunk, environment)
+	local loaded, settingsError = pcall(chunk)
+	local settings = environment.settings
 	if not loaded or type(settings) ~= 'table' then
-		log.write(quagglesLogName, log.WARNING, 'Invalid update settings: '..tostring(settings))
+		log.write(quagglesLogName, log.WARNING, 'Invalid settings: '..tostring(settingsError))
 		return fallback, false
+	end
+
+	local hashesValid = settings.warnedDataLuaHashes == nil or type(settings.warnedDataLuaHashes) == 'table'
+	if hashesValid and settings.warnedDataLuaHashes then
+		for hash, warned in pairs(settings.warnedDataLuaHashes) do
+			if type(hash) ~= 'string' or #hash ~= 32 or not hash:match('^[0-9a-f]+$') or warned ~= true then
+				hashesValid = false
+				break
+			end
+		end
 	end
 
 	local valid = (settings.disableUpdateCheck == nil or type(settings.disableUpdateCheck) == 'boolean') and
+		(settings.disableDataLuaHashWarning == nil or type(settings.disableDataLuaHashWarning) == 'boolean') and
 		(settings.lastUpdateCheck == nil or
 			(type(settings.lastUpdateCheck) == 'number' and settings.lastUpdateCheck >= 0 and settings.lastUpdateCheck == math.floor(settings.lastUpdateCheck))) and
-		(settings.lastDcsVersion == nil or versionParts(settings.lastDcsVersion) ~= nil)
+		(settings.lastDcsVersion == nil or versionParts(settings.lastDcsVersion) ~= nil) and hashesValid
 	if not valid then
-		log.write(quagglesLogName, log.WARNING, 'Invalid values in update settings; file left unchanged')
+		log.write(quagglesLogName, log.WARNING, 'Invalid values in settings; file left unchanged')
 		return fallback, false
 	end
 	settings.disableUpdateCheck = settings.disableUpdateCheck == true
+	settings.disableDataLuaHashWarning = settings.disableDataLuaHashWarning == true
+	settings.warnedDataLuaHashes = settings.warnedDataLuaHashes or {}
 	return settings, true
 end
 
+-- Hash a file with DCS's bundled native MD5 implementation.
+local function md5(path)
+	local hashed, digest = pcall(function()
+		local file = assert(io.open(path, 'rb'))
+		local contents, readError = file:read('*a')
+		file:close()
+		assert(contents, readError)
+		local loadMd5 = assert(package.loadlib(lfs.currentdir()..'/bin/lua-md5.dll', 'luaopen_md5_core'))
+		return loadMd5().sum(contents)
+	end)
+	if not hashed or type(digest) ~= 'string' or #digest ~= 16 then
+		return nil, 'Unable to hash "'..path..'": '..tostring(digest)
+	end
+	return (digest:gsub('.', function(character)
+		return string.format('%02x', string.byte(character))
+	end))
+end
+
+-- Warn without blocking installation when the input loader has not been tested with this hook.
+local function checkDataLuaCompatibility(settings, settingsWritable)
+	if settings.disableDataLuaHashWarning then
+		return
+	end
+
+	local hash, hashError = md5(lfs.currentdir()..'/Scripts/Input/Data.lua')
+	local message
+	local onDismiss
+	if not hash then
+		log.write(quagglesLogName, log.WARNING, hashError)
+		message = 'Quaggles Input Command Injector could not verify compatibility with DCS Input Data.lua.\n\n'..
+			'The injector will continue loading. See dcs.log for details.'
+	elseif testedDataLuaHashes[hash] or settings.warnedDataLuaHashes[hash] then
+		return
+	else
+		local dcsVersion = rawget(_G, '__DCS_VERSION__') or rawget(_G, '_APP_VERSION') or 'unknown'
+		message = 'Your DCS version\'s /Scripts/Input/Data.lua file has not been tested with Quaggles Input Command Injector.\n\n'..
+			'DCS version: '..tostring(dcsVersion)..'\nMD5: '..hash..'\n\n'..
+			'The injector will still attempt to load. If you encounter issues, remove the mod and check for a newer release:\n'..
+			'https://github.com/Quaggles/dcs-input-command-injector\n\n'..
+			'To disable these warnings, set disableDataLuaHashWarning = true in:\n'..settingsPath
+		onDismiss = function()
+			settings.warnedDataLuaHashes[hash] = true
+			if settingsWritable then
+				local saved, saveError = saveSettings(settings)
+				if not saved then
+					log.write(quagglesLogName, log.WARNING, 'Unable to save dismissed Data.lua warning: '..tostring(saveError))
+				end
+			end
+		end
+	end
+
+	log.write(quagglesLogName, log.WARNING, message)
+	local ok = 'OK'
+	local handler = require('MsgWindow').warning(message, 'Quaggles Input Command Injector Compatibility', ok)
+	function handler:onChange(buttonText)
+		if buttonText == ok and onDismiss then
+			onDismiss()
+		end
+	end
+	handler:setDefaultButton(ok)
+	handler:show()
+end
+
 -- Start a best-effort HTTPS check using DCS's native asynchronous web and GUI update APIs.
-local function startUpdateCheck()
-	local settings, settingsWritable = loadSettings()
+local function startUpdateCheck(settings, settingsWritable)
 	if settings.disableUpdateCheck then
 		return
 	end
@@ -466,13 +543,25 @@ local function install()
 end
 
 -- Keep a hook installation failure from preventing other DCS hooks from loading.
+local settingsLoaded, settings, settingsWritable = pcall(loadSettings)
+if not settingsLoaded then
+	log.write(quagglesLogName, log.WARNING, 'Unable to initialize settings: '..tostring(settings))
+	settings = {disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
+	settingsWritable = false
+end
+
+local compatibilityOk, compatibilityError = pcall(checkDataLuaCompatibility, settings, settingsWritable)
+if not compatibilityOk then
+	log.write(quagglesLogName, log.WARNING, 'Unable to check Data.lua compatibility: '..tostring(compatibilityError))
+end
+
 local ok, err = pcall(install)
 if not ok then
 	reportError('Unable to install: '..tostring(err))
 end
 
 -- Update failures must never prevent the injector or other DCS hooks from loading.
-local updateOk, updateError = pcall(startUpdateCheck)
+local updateOk, updateError = pcall(startUpdateCheck, settings, settingsWritable)
 if not updateOk then
 	log.write(quagglesLogName, log.WARNING, 'Unable to start update check: '..tostring(updateError))
 end
