@@ -167,7 +167,7 @@ end
 
 -- Create defaults when absent and sandbox/validate an existing Lua settings file before using it.
 local function loadSettings()
-	local fallback = {disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
+	local fallback = {verboseLogging = false, disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
 	local directoryAttributes = lfs.attributes(settingsDirectory)
 	if directoryAttributes and directoryAttributes.mode ~= 'directory' then
 		log.write(quagglesLogName, log.WARNING, 'Settings path is not a directory: '..settingsDirectory)
@@ -213,7 +213,8 @@ local function loadSettings()
 		end
 	end
 
-	local valid = (settings.disableUpdateCheck == nil or type(settings.disableUpdateCheck) == 'boolean') and
+	local valid = (settings.verboseLogging == nil or type(settings.verboseLogging) == 'boolean') and
+		(settings.disableUpdateCheck == nil or type(settings.disableUpdateCheck) == 'boolean') and
 		(settings.disableDataLuaHashWarning == nil or type(settings.disableDataLuaHashWarning) == 'boolean') and
 		(settings.lastUpdateCheck == nil or
 			(type(settings.lastUpdateCheck) == 'number' and settings.lastUpdateCheck >= 0 and settings.lastUpdateCheck == math.floor(settings.lastUpdateCheck))) and
@@ -222,6 +223,7 @@ local function loadSettings()
 		log.write(quagglesLogName, log.WARNING, 'Invalid values in settings; file left unchanged')
 		return fallback, false
 	end
+	settings.verboseLogging = settings.verboseLogging == true
 	settings.disableUpdateCheck = settings.disableUpdateCheck == true
 	settings.disableDataLuaHashWarning = settings.disableDataLuaHashWarning == true
 	settings.warnedDataLuaHashes = settings.warnedDataLuaHashes or {}
@@ -375,14 +377,13 @@ local function startUpdateCheck(settings, settingsWritable)
 	end)
 end
 
-local function QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result)
-	local quagglesLoggingEnabled = false
+local function QuagglesInputCommandInjector(deviceGenericName, filename, folder, env, result, verboseLogging)
 	-- Returns true if string starts with supplied string
 	local function StartsWith(String,Start)
 		return string.sub(String,1,string.len(Start))==Start
 	end
 
-	if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, 'Detected loading of type: "'..deviceGenericName..'", filename: "'..filename..'"') end
+	if verboseLogging then log.write(quagglesLogName, log.INFO, 'Detected loading of type: "'..deviceGenericName..'", filename: "'..filename..'"') end
 	-- Only operate on files that are in this folder
 	local targetPrefixForAircrafts = "./Mods/aircraft/"
 	local targetPrefixForDotConfig = "./Config/Input/"
@@ -398,11 +399,11 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 	if targetPrefix then
 		-- Transform path to user folder
 		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
-		if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '--Translated path: "'..newFileName..'"') end
+		if verboseLogging then log.write(quagglesLogName, log.INFO, '--Translated path: "'..newFileName..'"') end
 
 		-- If the user has put a file there continue
 		if lfs.attributes(newFileName) then
-			if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '----Found merge at: "'..newFileName..'"') end
+			if verboseLogging then log.write(quagglesLogName, log.INFO, '----Found merge at: "'..newFileName..'"') end
 			--Configure file to run in same environment as the default command entry file
 			local f, err = loadfile(newFileName)
 			if err ~= nil then
@@ -427,9 +428,9 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 							result.axisCommands = resultInj.axisCommands
 						end
 					end
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge successful') end
+					if verboseLogging then log.write(quagglesLogName, log.INFO, '------Merge successful') end
 				else
-					if quagglesLoggingEnabled then log.write(quagglesLogName, log.INFO, '------Merge failed: "'..tostring(statusInj)..'"') end
+					if verboseLogging then log.write(quagglesLogName, log.INFO, '------Merge failed: "'..tostring(statusInj)..'"') end
 					reportError('Failed to execute custom input commands from "'..tostring(newFileName)..'": '..tostring(resultInj), false)
 				end
 			end
@@ -437,7 +438,7 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 	end
 end
 
-local function install()
+local function install(settings)
 	local InputData = require('Input.Data')
 	local InputUtils = require('Input.Utils')
 	if type(getfenv) ~= 'function' or type(setfenv) ~= 'function' then
@@ -505,7 +506,7 @@ local function install()
 				if env.deviceName ~= nil then
 					deviceGenericName = InputUtils.getDeviceTemplateName(env.deviceName)
 				end
-				local injected, injectionError = pcall(QuagglesInputCommandInjector, deviceGenericName, filename, env.folder, env, result)
+				local injected, injectionError = pcall(QuagglesInputCommandInjector, deviceGenericName, filename, env.folder, env, result, settings.verboseLogging)
 				if not injected then
 					reportError('Failed to inject custom input commands from "'..tostring(filename)..'": '..tostring(injectionError))
 				end
@@ -554,7 +555,7 @@ end
 local settingsLoaded, settings, settingsWritable = pcall(loadSettings)
 if not settingsLoaded then
 	log.write(quagglesLogName, log.WARNING, 'Unable to initialize settings: '..tostring(settings))
-	settings = {disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
+	settings = {verboseLogging = false, disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
 	settingsWritable = false
 end
 
@@ -563,7 +564,7 @@ if not compatibilityOk then
 	log.write(quagglesLogName, log.WARNING, 'Unable to check Data.lua compatibility: '..tostring(compatibilityError))
 end
 
-local ok, err = pcall(install)
+local ok, err = pcall(install, settings)
 if not ok then
 	reportError('Unable to inject:\n'..tostring(err))
 end
