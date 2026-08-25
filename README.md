@@ -43,9 +43,6 @@ With this mod things should just keep working automatically between updates unle
 
 Since this mod doesn't replace any DCS files it will survive DCS updates and repairs (Unless "Search for extra files after repair" is enabled and you choose to delete the script)
 
-> [!WARNING]
-> If you are using OVGME/JSGME and have problems installing try using [Open Mod Manager](https://github.com/sedenion/OpenModMan/releases/) or installing manually.
-
 ## Configuration
 
 New commands are configured in the `Saved Games\DCS\InputCommands` directory, lets go through how to configure a hold command for the speedbrake on the F/A-18C Hornet.
