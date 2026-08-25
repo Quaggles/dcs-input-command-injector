@@ -191,16 +191,14 @@ local function loadSettings()
 
 	local chunk, loadError = loadfile(settingsPath)
 	if not chunk then
-		log.write(quagglesLogName, log.WARNING, 'Unable to load settings: '..tostring(loadError))
-		return fallback, false
+		error('Unable to load settings: '..tostring(loadError))
 	end
 	local environment = {}
 	setfenv(chunk, environment)
 	local loaded, settingsError = pcall(chunk)
 	local settings = environment.settings
 	if not loaded or type(settings) ~= 'table' then
-		log.write(quagglesLogName, log.WARNING, 'Invalid settings: '..tostring(settingsError))
-		return fallback, false
+		error('Invalid settings: '..tostring(settingsError))
 	end
 
 	local hashesValid = settings.warnedDataLuaHashes == nil or type(settings.warnedDataLuaHashes) == 'table'
@@ -220,8 +218,7 @@ local function loadSettings()
 			(type(settings.lastUpdateCheck) == 'number' and settings.lastUpdateCheck >= 0 and settings.lastUpdateCheck == math.floor(settings.lastUpdateCheck))) and
 		(settings.lastDcsVersion == nil or versionParts(settings.lastDcsVersion) ~= nil) and hashesValid
 	if not valid then
-		log.write(quagglesLogName, log.WARNING, 'Invalid values in settings; file left unchanged')
-		return fallback, false
+		error('Invalid values in settings; file left unchanged')
 	end
 	settings.verboseLogging = settings.verboseLogging == true
 	settings.disableUpdateCheck = settings.disableUpdateCheck == true
@@ -554,9 +551,8 @@ end
 
 local settingsLoaded, settings, settingsWritable = pcall(loadSettings)
 if not settingsLoaded then
-	log.write(quagglesLogName, log.WARNING, 'Unable to initialize settings: '..tostring(settings))
-	settings = {verboseLogging = false, disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
-	settingsWritable = false
+	reportError('Unable to read settings:\n'..tostring(settings), false)
+	return
 end
 
 local compatibilityOk, compatibilityError = pcall(checkDataLuaCompatibility, settings, settingsWritable)
