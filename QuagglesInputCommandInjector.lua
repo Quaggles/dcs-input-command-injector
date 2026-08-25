@@ -13,6 +13,9 @@ local openErrorDialogs = {}
 local suppressedErrorDialogs = {}
 local suppressAllErrorDialogs = false
 
+local settingsDirectory = lfs.writedir()..'InputCommands'
+local settingsPath = settingsDirectory..'\\settings.lua'
+
 -- Parse a dotted numeric version, optionally prefixed with "v", for both mod and DCS versions.
 local function versionParts(version)
 	if type(version) ~= 'string' then
@@ -92,9 +95,8 @@ local function reportError(message, showRepoLink)
 		log.write(quagglesLogName, log.ERROR, 'Unable to display error message: '..tostring(MsgWindow))
 		return
 	end
-
-	local repoLink = showRepoLink == false and '' or '\n\nPlease check for a newer version:\nhttps://github.com/Quaggles/dcs-input-command-injector'
-	local dialogText = 'Quaggles Input Command Injector failed:\n\n'..dialogMessage..repoLink
+	local repoLink = showRepoLink == false and '' or '\n\nCheck for a newer version of the mod. Current: v'..quagglesVersion..', new versions can be found at:\nhttps://github.com/Quaggles/dcs-input-command-injector/releases'
+	local dialogText = 'Input Command Injector Mod error:\n\n'..dialogMessage..repoLink
 	if suppressAllErrorDialogs or openErrorDialogs[dialogText] or suppressedErrorDialogs[dialogText] then
 		return
 	end
@@ -103,7 +105,7 @@ local function reportError(message, showRepoLink)
 	local shown, showError = pcall(function()
 		local okToAll = 'OK to All'
 		local ok = 'OK'
-		local handler = MsgWindow.error(dialogText, 'Quaggles Input Command Injector', okToAll, ok)
+		local handler = MsgWindow.error(dialogText, 'Input Command Injector Mod Error', okToAll, ok)
 		function handler:onChange(buttonText)
 			openErrorDialogs[dialogText] = nil
 			if buttonText == okToAll then
@@ -135,9 +137,9 @@ local function reportUpdate(latestVersion, releaseUrl)
 
 	local shown, showError = pcall(function()
 		local ok = 'OK'
-		local message = 'A newer Quaggles Input Command Injector release is available.\n\n'..
-			'Installed: '..quagglesVersion..'\nLatest: '..latestVersion..'\n\n'..releaseUrl
-		local handler = MsgWindow.info(message, 'Quaggles Input Command Injector Update', ok)
+		local message = 'A new Quaggles Input Command Injector version is available!\n\n'..
+			'Current: v'..quagglesVersion..'\nNew: v'..latestVersion..'\n\nDownload from:\n'..releaseUrl..'\n\nTo disable update checks, set disableUpdateCheck = true in:\n'..settingsPath
+		local handler = MsgWindow.info(message, 'Input Command Injector Mod Update', ok)
 		handler:setDefaultButton(ok)
 		handler:show()
 	end)
@@ -145,9 +147,6 @@ local function reportUpdate(latestVersion, releaseUrl)
 		log.write(quagglesLogName, log.WARNING, 'Unable to display update message: '..tostring(showError))
 	end
 end
-
-local settingsDirectory = lfs.writedir()..'InputCommands'
-local settingsPath = settingsDirectory..'/settings.lua'
 
 -- Persist the small mod-owned settings table directly.
 local function saveSettings(settings)
@@ -264,11 +263,12 @@ local function checkDataLuaCompatibility(settings, settingsWritable)
 		return
 	else
 		local dcsVersion = rawget(_G, '__DCS_VERSION__') or rawget(_G, '_APP_VERSION') or 'unknown'
-		message = 'Your DCS version\'s /Scripts/Input/Data.lua file has not been tested with Quaggles Input Command Injector.\n\n'..
-			'DCS version: '..tostring(dcsVersion)..'\nMD5: '..hash..'\n\n'..
-			'The injector will still attempt to load. If you encounter issues, remove the mod and check for a newer release:\n'..
-			'https://github.com/Quaggles/dcs-input-command-injector\n\n'..
-			'To disable these warnings, set disableDataLuaHashWarning = true in:\n'..settingsPath
+		message = 'Your DCS version ('..tostring(dcsVersion)..') is not tested for compatibility with Input Command Injector v'..quagglesVersion..',\nit changed a file the mod uses:\n\n'..
+			'"DCS World/Scripts/Input/Data.lua" hash: '..string.sub(hash, 1, 7)..'\n\n'..
+			'The injector will still run and could still work but if you encounter issues or errors,\n'..
+			'remove the mod first to see if that fixes the issue before reporting bugs to Eagle Dynamics.\n\n'..
+			'This warning will not show again for this version of DCS World.\n\n'..
+			'To disable these warnings completely, set disableDataLuaHashWarning = true in:\n'..settingsPath
 		onDismiss = function()
 			settings.warnedDataLuaHashes[hash] = true
 			if settingsWritable then
@@ -282,7 +282,7 @@ local function checkDataLuaCompatibility(settings, settingsWritable)
 
 	log.write(quagglesLogName, log.WARNING, message)
 	local ok = 'OK'
-	local handler = require('MsgWindow').warning(message, 'Quaggles Input Command Injector Compatibility', ok)
+	local handler = require('MsgWindow').warning(message, 'Input Command Injector Mod Compatibility', ok)
 	function handler:onChange(buttonText)
 		if buttonText == ok and onDismiss then
 			onDismiss()
@@ -557,7 +557,7 @@ end
 
 local ok, err = pcall(install)
 if not ok then
-	reportError('Unable to install: '..tostring(err))
+	reportError('Unable to inject:\n'..tostring(err))
 end
 
 -- Update failures must never prevent the injector or other DCS hooks from loading.
