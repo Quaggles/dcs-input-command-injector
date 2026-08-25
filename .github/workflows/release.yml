@@ -23,7 +23,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve package version
         id: version
@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload dry-run package
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Open-Mod-Manager-package-v${{ steps.version.outputs.version }}
           path: ${{ steps.package.outputs.asset }}
