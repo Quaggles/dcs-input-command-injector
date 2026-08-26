@@ -8,6 +8,7 @@ local updateUrl = 'https://api.github.com/repos/Quaggles/dcs-input-command-injec
 local updateInterval = 7 * 24 * 60 * 60
 local testedDataLuaHashes = {
 	['efb180c5feca96373c3f03bc4661be9a'] = true, -- DCS 2.9.28.26385
+	['ad0b39d45d44eb7a59eb48d0ca53621d'] = true, -- DCS 2.9.29.27278
 }
 local openErrorDialogs = {}
 local suppressedErrorDialogs = {}
