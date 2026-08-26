@@ -561,6 +561,8 @@ local function install(settings)
 				error(tostring(installError)..'; failed to restore DCS input loader: '..tostring(restoreError))
 			end
 			error(installError)
+		else
+			log.write(quagglesLogName, log.INFO, 'Successfully injected function wrapper')
 		end
 	end
 end
