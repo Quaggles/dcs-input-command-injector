@@ -15,6 +15,7 @@ local suppressAllErrorDialogs = false
 
 local settingsDirectory = lfs.writedir()..'InputCommands'
 local settingsPath = settingsDirectory..'\\settings.lua'
+local statePath = settingsDirectory..'\\state.lua'
 
 -- Parse a dotted numeric version, optionally prefixed with "v", for both mod and DCS versions.
 local function versionParts(version)
@@ -54,18 +55,18 @@ local function compareVersions(left, right)
 end
 
 -- Check weekly, after clock rollback, or when DCS advances beyond the highest version already seen.
-local function shouldCheckForUpdate(settings, now, dcsVersion)
+local function shouldCheckForUpdate(settings, state, now, dcsVersion)
 	if settings.disableUpdateCheck then
 		return false
 	end
-	local lastCheck = settings.lastUpdateCheck
+	local lastCheck = state.lastUpdateCheck
 	if type(lastCheck) ~= 'number' or now < lastCheck or now - lastCheck >= updateInterval then
 		return true
 	end
 	if not versionParts(dcsVersion) then
 		return false
 	end
-	local dcsComparison = compareVersions(dcsVersion, settings.lastDcsVersion)
+	local dcsComparison = compareVersions(dcsVersion, state.lastDcsVersion)
 	return dcsComparison == nil or dcsComparison > 0
 end
 local function reportError(message, showRepoLink)
@@ -148,15 +149,15 @@ local function reportUpdate(latestVersion, releaseUrl)
 	end
 end
 
--- Persist the small mod-owned settings table directly.
-local function saveSettings(settings)
-	local file, openError = io.open(settingsPath, 'w')
+-- Persist a small sandboxed Lua table directly.
+local function saveTable(path, name, value)
+	local file, openError = io.open(path, 'w')
 	if not file then
 		return false, openError
 	end
 
 	local written, writeError = pcall(function()
-		Serializer.new(file):serialize_sorted('settings', settings)
+		Serializer.new(file):serialize_sorted(name, value)
 	end)
 	local closed, closeError = pcall(function() file:close() end)
 	if not written or not closed then
@@ -165,66 +166,94 @@ local function saveSettings(settings)
 	return true
 end
 
+local function loadTable(path, name)
+	local chunk, loadError = loadfile(path)
+	if not chunk then
+		error(loadError)
+	end
+	local environment = {}
+	setfenv(chunk, environment)
+	local loaded, loadError = pcall(chunk)
+	local value = environment[name]
+	if not loaded or type(value) ~= 'table' then
+		error(loadError or 'expected a '..name..' table')
+	end
+	return value
+end
+
 -- Create defaults when absent and sandbox/validate an existing Lua settings file before using it.
 local function loadSettings()
-	local fallback = {verboseLogging = false, disableUpdateCheck = false, disableDataLuaHashWarning = false, warnedDataLuaHashes = {}}
+	local fallback = {verboseLogging = false, disableUpdateCheck = false, disableDataLuaHashWarning = false}
 	local directoryAttributes = lfs.attributes(settingsDirectory)
 	if directoryAttributes and directoryAttributes.mode ~= 'directory' then
 		log.write(quagglesLogName, log.WARNING, 'Settings path is not a directory: '..settingsDirectory)
-		return fallback, false
+		return fallback
 	elseif not directoryAttributes then
 		local created, createError = lfs.mkdir(settingsDirectory)
 		if not created then
 			log.write(quagglesLogName, log.WARNING, 'Unable to create settings directory: '..tostring(createError))
-			return fallback, false
+			return fallback
 		end
 	end
 
 	if not lfs.attributes(settingsPath) then
 		local settings = fallback
-		local saved, saveError = saveSettings(settings)
+		local saved, saveError = saveTable(settingsPath, 'settings', settings)
 		if not saved then
 			log.write(quagglesLogName, log.WARNING, 'Unable to create settings: '..tostring(saveError))
 		end
-		return settings, saved
+		return settings
 	end
 
-	local chunk, loadError = loadfile(settingsPath)
-	if not chunk then
-		error('Unable to load settings: '..tostring(loadError))
-	end
-	local environment = {}
-	setfenv(chunk, environment)
-	local loaded, settingsError = pcall(chunk)
-	local settings = environment.settings
-	if not loaded or type(settings) ~= 'table' then
-		error('Invalid settings: '..tostring(settingsError))
-	end
-
-	local hashesValid = settings.warnedDataLuaHashes == nil or type(settings.warnedDataLuaHashes) == 'table'
-	if hashesValid and settings.warnedDataLuaHashes then
-		for hash, warned in pairs(settings.warnedDataLuaHashes) do
-			if type(hash) ~= 'string' or #hash ~= 32 or not hash:match('^[0-9a-f]+$') or warned ~= true then
-				hashesValid = false
-				break
-			end
-		end
-	end
-
+	local settings = loadTable(settingsPath, 'settings')
 	local valid = (settings.verboseLogging == nil or type(settings.verboseLogging) == 'boolean') and
 		(settings.disableUpdateCheck == nil or type(settings.disableUpdateCheck) == 'boolean') and
-		(settings.disableDataLuaHashWarning == nil or type(settings.disableDataLuaHashWarning) == 'boolean') and
-		(settings.lastUpdateCheck == nil or
-			(type(settings.lastUpdateCheck) == 'number' and settings.lastUpdateCheck >= 0 and settings.lastUpdateCheck == math.floor(settings.lastUpdateCheck))) and
-		(settings.lastDcsVersion == nil or versionParts(settings.lastDcsVersion) ~= nil) and hashesValid
+		(settings.disableDataLuaHashWarning == nil or type(settings.disableDataLuaHashWarning) == 'boolean')
 	if not valid then
 		error('Invalid values in settings; file left unchanged')
 	end
 	settings.verboseLogging = settings.verboseLogging == true
 	settings.disableUpdateCheck = settings.disableUpdateCheck == true
 	settings.disableDataLuaHashWarning = settings.disableDataLuaHashWarning == true
-	settings.warnedDataLuaHashes = settings.warnedDataLuaHashes or {}
-	return settings, true
+	return settings
+end
+
+-- State is mod-owned and disposable, so replace unreadable or invalid state with fresh defaults.
+local function loadState()
+	local fallback = {warnedDataLuaHashes = {}}
+	if not lfs.attributes(statePath) then
+		local saved, saveError = saveTable(statePath, 'state', fallback)
+		if not saved then
+			log.write(quagglesLogName, log.WARNING, 'Unable to create state: '..tostring(saveError))
+		end
+		return fallback
+	end
+
+	local loaded, state = pcall(loadTable, statePath, 'state')
+	local hashesValid = loaded and (state.warnedDataLuaHashes == nil or type(state.warnedDataLuaHashes) == 'table')
+	if hashesValid and state.warnedDataLuaHashes then
+		for hash, warned in pairs(state.warnedDataLuaHashes) do
+			if type(hash) ~= 'string' or #hash ~= 32 or not hash:match('^[0-9a-f]+$') or warned ~= true then
+				hashesValid = false
+				break
+			end
+		end
+	end
+	local valid = hashesValid and
+		(state.lastUpdateCheck == nil or
+			(type(state.lastUpdateCheck) == 'number' and state.lastUpdateCheck >= 0 and state.lastUpdateCheck == math.floor(state.lastUpdateCheck))) and
+		(state.lastDcsVersion == nil or versionParts(state.lastDcsVersion) ~= nil)
+	if valid then
+		state.warnedDataLuaHashes = state.warnedDataLuaHashes or {}
+		return state
+	end
+
+	log.write(quagglesLogName, log.WARNING, 'Unable to read state; resetting it: '..tostring(loaded and 'invalid values' or state))
+	local saved, saveError = saveTable(statePath, 'state', fallback)
+	if not saved then
+		log.write(quagglesLogName, log.WARNING, 'Unable to reset state: '..tostring(saveError))
+	end
+	return fallback
 end
 
 -- Hash a file with DCS's bundled native MD5 implementation.
@@ -246,7 +275,7 @@ local function md5(path)
 end
 
 -- Warn without blocking installation when the input loader has not been tested with this hook.
-local function checkDataLuaCompatibility(settings, settingsWritable)
+local function checkDataLuaCompatibility(settings, state)
 	if settings.disableDataLuaHashWarning then
 		return
 	end
@@ -258,7 +287,7 @@ local function checkDataLuaCompatibility(settings, settingsWritable)
 		log.write(quagglesLogName, log.WARNING, hashError)
 		message = 'Quaggles Input Command Injector could not verify compatibility with DCS Input Data.lua.\n\n'..
 			'The injector will continue loading. See dcs.log for details.'
-	elseif testedDataLuaHashes[hash] or settings.warnedDataLuaHashes[hash] then
+	elseif testedDataLuaHashes[hash] or state.warnedDataLuaHashes[hash] then
 		return
 	else
 		local dcsVersion = rawget(_G, '__DCS_VERSION__') or rawget(_G, '_APP_VERSION') or 'unknown'
@@ -269,12 +298,10 @@ local function checkDataLuaCompatibility(settings, settingsWritable)
 			'This warning will not show again for this version of DCS World.\n\n'..
 			'To disable these warnings completely, set ["disableDataLuaHashWarning"] = true in:\n'..settingsPath
 		onDismiss = function()
-			settings.warnedDataLuaHashes[hash] = true
-			if settingsWritable then
-				local saved, saveError = saveSettings(settings)
-				if not saved then
-					log.write(quagglesLogName, log.WARNING, 'Unable to save dismissed Data.lua warning: '..tostring(saveError))
-				end
+			state.warnedDataLuaHashes[hash] = true
+			local saved, saveError = saveTable(statePath, 'state', state)
+			if not saved then
+				log.write(quagglesLogName, log.WARNING, 'Unable to save dismissed Data.lua warning: '..tostring(saveError))
 			end
 		end
 	end
@@ -292,7 +319,7 @@ local function checkDataLuaCompatibility(settings, settingsWritable)
 end
 
 -- Start a best-effort HTTPS check using DCS's native asynchronous web and GUI update APIs.
-local function startUpdateCheck(settings, settingsWritable)
+local function startUpdateCheck(settings, state)
 	if settings.disableUpdateCheck then
 		return
 	end
@@ -303,7 +330,7 @@ local function startUpdateCheck(settings, settingsWritable)
 
 	local dcsVersion = rawget(_G, '__DCS_VERSION__') or rawget(_G, '_APP_VERSION')
 	local now = os.time()
-	if not shouldCheckForUpdate(settings, now, dcsVersion) then
+	if not shouldCheckForUpdate(settings, state, now, dcsVersion) then
 		return
 	end
 
@@ -317,16 +344,14 @@ local function startUpdateCheck(settings, settingsWritable)
 
 	-- Record completed attempts even on HTTP failure so an offline startup does not retry every launch.
 	local function recordAttempt()
-		settings.lastUpdateCheck = os.time()
-		local comparison = compareVersions(dcsVersion, settings.lastDcsVersion)
+		state.lastUpdateCheck = os.time()
+		local comparison = compareVersions(dcsVersion, state.lastDcsVersion)
 		if versionParts(dcsVersion) and (comparison == nil or comparison > 0) then
-			settings.lastDcsVersion = dcsVersion
+			state.lastDcsVersion = dcsVersion
 		end
-		if settingsWritable then
-			local saved, saveError = saveSettings(settings)
-			if not saved then
-				log.write(quagglesLogName, log.WARNING, 'Unable to save update settings: '..tostring(saveError))
-			end
+		local saved, saveError = saveTable(statePath, 'state', state)
+		if not saved then
+			log.write(quagglesLogName, log.WARNING, 'Unable to save update state: '..tostring(saveError))
 		end
 	end
 
@@ -549,13 +574,19 @@ if scriptDirectory == writeHooksDirectory then
 	return
 end
 
-local settingsLoaded, settings, settingsWritable = pcall(loadSettings)
+local settingsLoaded, settings = pcall(loadSettings)
 if not settingsLoaded then
 	reportError('Unable to read settings:\n'..tostring(settings), false)
 	return
 end
 
-local compatibilityOk, compatibilityError = pcall(checkDataLuaCompatibility, settings, settingsWritable)
+local stateLoaded, state = pcall(loadState)
+if not stateLoaded then
+	log.write(quagglesLogName, log.WARNING, 'Unable to load state; using fresh state in memory: '..tostring(state))
+	state = {warnedDataLuaHashes = {}}
+end
+
+local compatibilityOk, compatibilityError = pcall(checkDataLuaCompatibility, settings, state)
 if not compatibilityOk then
 	log.write(quagglesLogName, log.WARNING, 'Unable to check Data.lua compatibility: '..tostring(compatibilityError))
 end
@@ -566,7 +597,7 @@ if not ok then
 end
 
 -- Update failures must never prevent the injector or other DCS hooks from loading.
-local updateOk, updateError = pcall(startUpdateCheck, settings, settingsWritable)
+local updateOk, updateError = pcall(startUpdateCheck, settings, state)
 if not updateOk then
 	log.write(quagglesLogName, log.WARNING, 'Unable to start update check: '..tostring(updateError))
 end
