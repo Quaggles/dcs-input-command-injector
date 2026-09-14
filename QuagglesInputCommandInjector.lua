@@ -411,6 +411,10 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 	local targetPrefixForAircrafts = "./Mods/aircraft/"
 	local targetPrefixForDotConfig = "./Config/Input/"
 	local targetPrefixForConfig    = "Config/Input/"
+	-- Third-party mods in Saved Games register absolute InputProfiles paths, e.g. "<Saved Games>\DCS\Mods/aircraft/A-4E-C/Input"
+	local targetPrefixForUserMods  = lfs.writedir():gsub('\\','/').."Mods/aircraft/"
+	local normalisedFilename = filename:gsub('\\','/')
+	local normalisedFolder   = folder:gsub('\\','/')
 	local targetPrefix = nil
 	if StartsWith(filename, targetPrefixForAircrafts) and StartsWith(folder, targetPrefixForAircrafts) then
 		targetPrefix = targetPrefixForAircrafts
@@ -418,10 +422,16 @@ local function QuagglesInputCommandInjector(deviceGenericName, filename, folder,
 		targetPrefix = targetPrefixForDotConfig
 	elseif StartsWith(filename, targetPrefixForConfig) then
 		targetPrefix = targetPrefixForConfig
+	elseif StartsWith(normalisedFilename:lower(), targetPrefixForUserMods:lower()) and StartsWith(normalisedFolder:lower(), targetPrefixForUserMods:lower()) then
+		targetPrefix = targetPrefixForUserMods
+		filename = normalisedFilename
 	end
 	if targetPrefix then
 		-- Transform path to user folder
-		local newFileName = filename:gsub(targetPrefix, lfs.writedir():gsub('\\','/').."InputCommands/")
+		local newFileName = lfs.writedir():gsub('\\','/').."InputCommands/"..filename:sub(#targetPrefix + 1)
+
+	
+	
 		if verboseLogging then log.write(quagglesLogName, log.INFO, '--Translated path: "'..newFileName..'"') end
 
 		-- If the user has put a file there continue
